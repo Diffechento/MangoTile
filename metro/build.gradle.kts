@@ -58,10 +58,20 @@ dependencies {
 // Signing material, from ~/.gradle/gradle.properties or the environment — deliberately not from
 // anywhere inside the repository. Absent, signing is skipped and every ordinary build, including
 // publishToMavenLocal, still works; only a Central bundle actually needs it.
+//
+// Two ways to provide it, and the local one is preferred on a developer machine:
+//
+//  * `signing.gnupg.keyName` — sign through the local gpg keyring. The private key never leaves
+//    it, and there is no multi-line value to escape into a properties file. On Windows also set
+//    `signing.gnupg.executable=gpg`, because Gradle defaults to `gpg2`, and Git for Windows
+//    installs the binary as `gpg`.
+//  * `signingKey` / `signingPassword` — an ASCII-armoured private key in a property or the
+//    environment, for CI, where there is no keyring to read.
 val signingKeyArmored: String? =
     (findProperty("signingKey") as String?) ?: System.getenv("SIGNING_KEY")
 val signingKeyPassword: String? =
     (findProperty("signingPassword") as String?) ?: System.getenv("SIGNING_PASSWORD")
+val signingGpgKeyName: String? = findProperty("signing.gnupg.keyName") as String?
 
 // components["release"] only exists once the Android plugin has finished configuring.
 afterEvaluate {
@@ -117,10 +127,20 @@ afterEvaluate {
     }
 
     signing {
-        isRequired = signingKeyArmored != null
-        if (signingKeyArmored != null) {
-            useInMemoryPgpKeys(signingKeyArmored, signingKeyPassword)
-            sign(publishing.publications["release"])
+        when {
+            signingKeyArmored != null -> {
+                isRequired = true
+                useInMemoryPgpKeys(signingKeyArmored, signingKeyPassword)
+                sign(publishing.publications["release"])
+            }
+            signingGpgKeyName != null -> {
+                isRequired = true
+                useGpgCmd()
+                sign(publishing.publications["release"])
+            }
+            // Neither configured: not an error. `centralBundle` will simply contain no .asc files,
+            // which is the one thing the Portal will not accept — so check for them before uploading.
+            else -> isRequired = false
         }
     }
 }
