@@ -17,7 +17,7 @@ side of it. There are launchers that imitate the home screen and a few dead widg
 kit that hands you a `MetroPanorama { }` and gives you the parallax and the flowing title for free.
 That is the gap this fills.
 
-`com.metrocompose:metro:1.0.0` · minSdk 26 · compileSdk 36 · MIT
+`io.github.diffechento:metro:1.0.0` · minSdk 26 · compileSdk 36 · MIT
 
 | Start | now playing | panorama ∞ |
 |:---:|:---:|:---:|
@@ -71,28 +71,37 @@ is what keeps the promise that the API only ever grows.
 
 ## Installing
 
-`:metro` publishes to your local Maven repo:
-
-```
-./gradlew :metro:publishToMavenLocal      # -> com.metrocompose:metro:1.0.0
-```
-
-Then in the consuming project add `mavenLocal()` to `dependencyResolutionManagement.repositories`
-and depend on it:
+From Maven Central — `mavenCentral()` is already in a default Android project, so this is the whole
+of it:
 
 ```kotlin
-implementation("com.metrocompose:metro:1.0.0")
+implementation("io.github.diffechento:metro:1.0.0")
 ```
 
-Compose is exposed as `api`, so you do not have to re-declare the stack. Republish after every
-change to the library — a fixed version in `mavenLocal` has no snapshot magic, so a change is
-invisible to consumers until you do.
+Compose is exposed as `api`, so you do not re-declare the stack: the BOM, `foundation`,
+`animation`, `ui`, `ui-graphics` and `material3` arrive with it.
 
-Requirements: a recent Android Studio, minSdk 26, compileSdk 36, and Jetpack Compose managed
-through the version catalog.
+Requirements: a recent Android Studio, minSdk 26, compileSdk 36.
 
-There is no Maven Central release, and no test suite — verification so far is `:sample` plus
-MetroMusic running on an emulator.
+Note that the artifact is `io.github.diffechento:metro` while the Kotlin package is
+`com.metrocompose` — Central only issues namespaces you can prove you own, and the package name is
+a separate thing from the coordinates. Imports are unaffected.
+
+### Building it yourself
+
+To work on the library and try the change in your own app before it is released, publish to your
+local Maven repo and put `mavenLocal()` first in
+`dependencyResolutionManagement.repositories`:
+
+```
+./gradlew :metro:publishToMavenLocal      # -> io.github.diffechento:metro:1.0.0
+```
+
+Republish after every change — a fixed version has no snapshot magic, so a change is invisible to
+consumers until you do.
+
+There is no test suite; verification is `:sample` plus MetroMusic running on an emulator and a
+Galaxy S23.
 
 ## Licence
 

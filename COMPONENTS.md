@@ -1,6 +1,6 @@
 # MetroCompose components
 
-Everything the library gives you, grouped by what it is for. `com.metrocompose:metro:1.0.0`; see
+Everything the library gives you, grouped by what it is for. `io.github.diffechento:metro:1.0.0`; see
 the [README](README.md) for installing it and running the sample.
 
 Names in `code` are the public API. From 1.0.0 the rule is additive — parameters get appended with
