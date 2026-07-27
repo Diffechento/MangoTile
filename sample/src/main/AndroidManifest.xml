@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application
+        android:allowBackup="true"
+        android:label="@string/app_name"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.MetroDemo">
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:theme="@style/Theme.MetroDemo">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- WP8-style home-screen tiles. Providers extend the framework's MetroWidgetProvider;
+             the provider-info xml resources live in the :metro library and are merged in. -->
+        <receiver
+            android:name=".MetroTileWidget"
+            android:exported="true"
+            android:label="Metro Tile">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/metro_tile_info" />
+        </receiver>
+
+        <receiver
+            android:name=".MetroSettingsTileWidget"
+            android:exported="true"
+            android:label="Metro Settings Tile">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/metro_tile_info" />
+        </receiver>
+
+        <receiver
+            android:name=".MetroLiveTileWidget"
+            android:exported="true"
+            android:label="Metro Live Tile">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/metro_live_info" />
+        </receiver>
+    </application>
+
+</manifest>

@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- WP8-style home-screen tile. Background color is set at runtime per widget type. -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/tile_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#FF1BA1E2"
+    android:padding="12dp">
+
+    <TextView
+        android:id="@+id/tile_glyph"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|start"
+        android:fontFamily="@font/selawik_light"
+        android:textColor="#FFFFFFFF"
+        android:textSize="36sp"
+        android:includeFontPadding="false"
+        android:text="♪" />
+
+    <TextView
+        android:id="@+id/tile_label"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|start"
+        android:fontFamily="@font/selawik_regular"
+        android:textColor="#FFFFFFFF"
+        android:textSize="16sp"
+        android:includeFontPadding="false"
+        android:text="collection" />
+
+</FrameLayout>

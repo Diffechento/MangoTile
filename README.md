@@ -1,0 +1,110 @@
+<h1>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/banner-dark.png">
+    <img src="docs/banner-light.png" alt="MetroCompose" width="820">
+  </picture>
+</h1>
+
+A Jetpack Compose UI kit for building Android apps that look and move like Windows Phone 8.
+
+Not a launcher, and not a theme you paste over Material. It is a set of building blocks — tiles,
+the panorama, the pivot, the long list with its jump grid, the flat typography, and the handful of
+transitions that made WP8 feel like WP8 — so you can assemble a whole app in that style instead of
+rebuilding the look from scratch every time.
+
+WP8's design language still has people who miss it, but on Android nobody ported the *app-building*
+side of it. There are launchers that imitate the home screen and a few dead widget snippets, and no
+kit that hands you a `MetroPanorama { }` and gives you the parallax and the flowing title for free.
+That is the gap this fills.
+
+`com.metrocompose:metro:1.0.0` · minSdk 26 · compileSdk 36 · MIT
+
+| Start | now playing | panorama ∞ |
+|:---:|:---:|:---:|
+| ![The sample's Start screen: a grid of flat coloured tiles under a large lowercase title](docs/sample-start.png) | ![The now playing page risen out of the mini player, with artwork, a hairline slider and ringed transport buttons](docs/sample-player.png) | ![A panorama section, its title running off the right edge and the next section's header leaning in](docs/sample-panorama.png) |
+
+All three are `:sample` on a stock emulator — tiles and `MetroPage`, a `MetroRisingPage` pulled up
+out of a `MetroBottomBar`, and the circular panorama with the next header peeking in.
+
+**[COMPONENTS.md](COMPONENTS.md) is the reference** — every page, control, panel, transition and
+widget the library provides, with the reasoning behind the ones that have any.
+
+Built with it: **[MetroMusic](https://github.com/Diffechento/MetroMusic)**, a full WP8-style music
+player.
+
+## The sample
+
+```
+./gradlew :sample:installDebug
+```
+
+`:sample` is a demo app covering the whole kit — one Start tile per area of it. Run it to see what
+the library does before wiring it into anything.
+
+- **now playing** — the shape a real player takes, and the densest screen here: a mini player in a
+  `MetroBottomBar` that you pull up into a `MetroRisingPage` and push back down to dismiss, with the
+  artwork swiping sideways to change track and the whole signature motion running at once —
+  `metroSlideIn` on the cover, `MetroSwap` staggered down the three text lines, `MetroCrossfade` on
+  the backdrop, ringed and bare `TransportButton`s, the hairline slider.
+- **motion** — the same pieces separated out and keyed on one button, so the difference between a
+  translation and a squeeze, and between a swap and a crossfade, is visible rather than asserted.
+- **panorama ∞** — the circular, lazy list-overload panorama: a jump list living inside one section,
+  settings at the far end still one swipe from the start, a switch for `backgroundTiles`.
+- **collection** — the simpler lambda-overload panorama with the three-layer parallax.
+- **icons** — every `MetroIcon` drawn, and typed glyphs beside `CenteredGlyph` ones.
+- **banners** — `MetroTopBanner`, and a `MetroVolumeBanner` wired to the hardware volume keys.
+- **jump** — the LongListSelector over Latin *and* Cyrillic, `filledGroupHeaders` on a switch.
+- **stack** — `MetroBackStack`'s `push`/`pop`/`popTo`/`replaceAll`, and the per-destination state
+  retention that survives a screen being covered.
+- **controls**, **buttons**, **dialogs**, **pivot**, **songs**, **settings**, **theme** — the
+  control gallery including `MetroSuggestBox` and `metroTilt`, the context menu with a greyed
+  action, both forms of the pivot, continuum, and a theme picker that also offers a custom
+  background and a `MetroBackdrop` for the whole app.
+
+It is also the acceptance test for changes to the library: it must keep building *untouched*, which
+is what keeps the promise that the API only ever grows.
+
+```
+:metro    the library — this is what ships
+:sample   the demo — this is what you run
+```
+
+## Installing
+
+`:metro` publishes to your local Maven repo:
+
+```
+./gradlew :metro:publishToMavenLocal      # -> com.metrocompose:metro:1.0.0
+```
+
+Then in the consuming project add `mavenLocal()` to `dependencyResolutionManagement.repositories`
+and depend on it:
+
+```kotlin
+implementation("com.metrocompose:metro:1.0.0")
+```
+
+Compose is exposed as `api`, so you do not have to re-declare the stack. Republish after every
+change to the library — a fixed version in `mavenLocal` has no snapshot magic, so a change is
+invisible to consumers until you do.
+
+Requirements: a recent Android Studio, minSdk 26, compileSdk 36, and Jetpack Compose managed
+through the version catalog.
+
+There is no Maven Central release, and no test suite — verification so far is `:sample` plus
+MetroMusic running on an emulator.
+
+## Licence
+
+**MIT** — see [LICENSE](LICENSE). Build whatever you like on it, including something closed and
+commercial; keep the copyright notice and you have met the terms.
+
+The bundled Selawik fonts are not covered by that: they are Microsoft's, under the SIL Open Font
+License 1.1, and keep their own terms — including a Reserved Font Name, so a subset of them may not
+be called Selawik. The full text is in
+[licenses/Selawik-OFL-1.1.txt](licenses/Selawik-OFL-1.1.txt), and
+[THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) has the details along with the dependencies.
+
+
+MetroCompose is not affiliated with Microsoft. "Windows Phone", "Metro" and "Segoe" are
+Microsoft's; this is an homage to a design language, built from scratch.
