@@ -17,6 +17,8 @@ side of it. There are launchers that imitate the home screen and a few dead widg
 kit that hands you a `MetroPanorama { }` and gives you the parallax and the flowing title for free.
 That is the gap this fills.
 
+[![Maven Central](https://img.shields.io/maven-central/v/io.github.diffechento/metro?label=Maven%20Central)](https://central.sonatype.com/artifact/io.github.diffechento/metro)
+
 `io.github.diffechento:metro:1.0.0` · minSdk 26 · compileSdk 36 · MIT
 
 | Start | now playing | panorama ∞ |
@@ -71,8 +73,8 @@ is what keeps the promise that the API only ever grows.
 
 ## Installing
 
-From Maven Central — `mavenCentral()` is already in a default Android project, so this is the whole
-of it:
+On [Maven Central](https://central.sonatype.com/artifact/io.github.diffechento/metro), and
+`mavenCentral()` is already in a default Android project, so this is the whole of it:
 
 ```kotlin
 implementation("io.github.diffechento:metro:1.0.0")

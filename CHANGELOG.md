@@ -35,4 +35,5 @@ Cyrillic), `ListRow`, `SettingRow`, `MetroBottomInset`.
 **Insets** — `MetroPage`, `AppBar` and `MetroBottomBar` fill the window and inset their own
 content; lists carry the navigation-bar inset inside their own scroll.
 
-Published to Maven local as `io.github.diffechento:metro:1.0.0`, with a sources jar.
+Published to **Maven Central** as `io.github.diffechento:metro:1.0.0`, with sources and javadoc
+jars and detached PGP signatures.
