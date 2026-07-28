@@ -1,7 +1,7 @@
 <h1>
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/banner-dark.png">
-    <img src="docs/banner-light.png" alt="MetroCompose" width="820">
+    <img src="docs/banner-light.png" alt="MangoTile" width="820">
   </picture>
 </h1>
 
@@ -12,14 +12,22 @@ the panorama, the pivot, the long list with its jump grid, the flat typography, 
 transitions that made WP8 feel like WP8 — so you can assemble a whole app in that style instead of
 rebuilding the look from scratch every time.
 
-WP8's design language still has people who miss it, but on Android nobody ported the *app-building*
-side of it. There are launchers that imitate the home screen and a few dead widget snippets, and no
-kit that hands you a `MetroPanorama { }` and gives you the parallax and the flowing title for free.
-That is the gap this fills.
+WP8's design language still has people who miss it, and what they miss is rarely the colours — it
+is the way the thing moved. That is where most of the work here went. The panorama has three real
+parallax layers: background, title and content each travel at their own speed as you drag, and
+letting go settles on a section boundary rather than wherever your finger stopped. Continuum
+carries a title out of a list row into the next page's big header, and flows it back on Back. The
+swap leaves a line **empty** for a beat before refilling it — not a cross-fade, because the empty
+beat is what makes it read as words being replaced rather than blurring into each other. The
+easings are measured off a Lumia doing it, not guessed at.
 
 [![Maven Central](https://img.shields.io/maven-central/v/io.github.diffechento/metro?label=Maven%20Central)](https://central.sonatype.com/artifact/io.github.diffechento/metro)
 
 `io.github.diffechento:metro:1.0.0` · minSdk 26 · compileSdk 36 · MIT
+
+MangoTile is the kit; `Metro` is the vocabulary of the design language it implements. So the
+artifact, the package and every symbol keep that name — `MetroPanorama` means *a panorama in the
+Metro style*, and renaming it to match the brand would say less, not more.
 
 | Start | now playing | panorama ∞ |
 |:---:|:---:|:---:|
@@ -117,5 +125,5 @@ be called Selawik. The full text is in
 [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) has the details along with the dependencies.
 
 
-MetroCompose is not affiliated with Microsoft. "Windows Phone", "Metro" and "Segoe" are
+MangoTile is not affiliated with Microsoft. "Windows Phone", "Metro" and "Segoe" are
 Microsoft's; this is an homage to a design language, built from scratch.

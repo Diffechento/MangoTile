@@ -19,6 +19,6 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "MetroCompose"
+rootProject.name = "MangoTile"
 include(":metro")
 include(":sample")

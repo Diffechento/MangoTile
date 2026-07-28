@@ -1,4 +1,4 @@
-# MetroCompose components
+# MangoTile components
 
 Everything the library gives you, grouped by what it is for. `io.github.diffechento:metro:1.0.0`; see
 the [README](README.md) for installing it and running the sample.

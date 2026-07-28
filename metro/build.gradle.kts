@@ -83,17 +83,17 @@ afterEvaluate {
 
                 // Central validates every one of these and rejects the bundle if any is missing.
                 pom {
-                    name.set("MetroCompose")
+                    name.set("MangoTile")
                     description.set(
                         "A Jetpack Compose UI kit for building Android apps that look and move " +
                             "like Windows Phone 8: tiles, the panorama, the pivot, the long list " +
                             "with its jump grid, and the WP8 transitions."
                     )
-                    url.set("https://github.com/Diffechento/MetroCompose")
+                    url.set("https://github.com/Diffechento/MangoTile")
                     licenses {
                         license {
                             name.set("MIT License")
-                            url.set("https://github.com/Diffechento/MetroCompose/blob/main/LICENSE")
+                            url.set("https://github.com/Diffechento/MangoTile/blob/main/LICENSE")
                             distribution.set("repo")
                         }
                     }
@@ -105,10 +105,10 @@ afterEvaluate {
                         }
                     }
                     scm {
-                        url.set("https://github.com/Diffechento/MetroCompose")
-                        connection.set("scm:git:https://github.com/Diffechento/MetroCompose.git")
+                        url.set("https://github.com/Diffechento/MangoTile")
+                        connection.set("scm:git:https://github.com/Diffechento/MangoTile.git")
                         developerConnection.set(
-                            "scm:git:ssh://git@github.com/Diffechento/MetroCompose.git"
+                            "scm:git:ssh://git@github.com/Diffechento/MangoTile.git"
                         )
                     }
                 }

@@ -1,13 +1,13 @@
 # Third-party notices
 
-MetroCompose itself is under the MIT licence — see [LICENSE](LICENSE). The material below belongs
+MangoTile itself is under the MIT licence — see [LICENSE](LICENSE). The material below belongs
 to other people and keeps its own terms.
 
 ## Bundled fonts — Selawik
 
 This library bundles the Selawik typeface in three weights, as
 `metro/src/main/res/font/selawik_light.ttf`, `selawik_semilight.ttf` and `selawik_regular.ttf`.
-Anything built on MetroCompose therefore ships these fonts too.
+Anything built on MangoTile therefore ships these fonts too.
 
 > Copyright 2015, Microsoft Corporation (www.microsoft.com), with Reserved Font Name Selawik.
 > All Rights Reserved. Selawik is a trademark of Microsoft Corporation in the United States
@@ -40,5 +40,5 @@ so an MIT library over an Apache-2.0 stack is unremarkable.
 
 ## Trademarks
 
-MetroCompose is not affiliated with Microsoft. "Windows Phone", "Metro" and "Segoe" are
+MangoTile is not affiliated with Microsoft. "Windows Phone", "Metro" and "Segoe" are
 Microsoft's. This project is an homage to a design language, written from scratch.

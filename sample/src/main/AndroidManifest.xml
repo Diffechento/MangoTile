@@ -21,7 +21,7 @@
         <receiver
             android:name=".MetroTileWidget"
             android:exported="true"
-            android:label="Metro Tile">
+            android:label="MangoTile">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
@@ -33,7 +33,7 @@
         <receiver
             android:name=".MetroSettingsTileWidget"
             android:exported="true"
-            android:label="Metro Settings Tile">
+            android:label="MangoTile — settings">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
@@ -45,7 +45,7 @@
         <receiver
             android:name=".MetroLiveTileWidget"
             android:exported="true"
-            android:label="Metro Live Tile">
+            android:label="MangoTile — live">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
