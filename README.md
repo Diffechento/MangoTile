@@ -36,6 +36,22 @@ Metro style*, and renaming it to match the brand would say less, not more.
 All three are `:sample` on a stock emulator — tiles and `MetroPage`, a `MetroRisingPage` pulled up
 out of a `MetroBottomBar`, and the circular panorama with the next header peeking in.
 
+A panorama is about this much code:
+
+```kotlin
+MetroPanorama(title = "collection", overline = "MUSIC + VIDEOS", background = { Wallpaper() }) {
+    PanoramaSection("history") {
+        Tile("Daft Punk", Metro.Accent, 220.dp, 108.dp)
+    }
+    PanoramaSection("new") {
+        Tile("Radiohead", Metro.Red, 220.dp, 108.dp)
+    }
+}
+```
+
+The parallax, the snap to a section boundary and the title bleeding off the right edge come with it;
+there is nothing to wire up.
+
 **[COMPONENTS.md](COMPONENTS.md) is the reference** — every page, control, panel, transition and
 widget the library provides, with the reasoning behind the ones that have any.
 
