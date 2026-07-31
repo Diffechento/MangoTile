@@ -1,5 +1,34 @@
 # Changelog
 
+## 1.0.1 (not published — mavenLocal only)
+
+**A long list can be arranged by anything, not only by its initial letter.** `MetroListSort` is that
+arrangement as data — a name, a comparator, and what the header above each run of rows says — so a
+screen can hold several and hand the list whichever is in force. `MetroListSort.alphabetical` is the
+A–Z one this list has always had, spelled that way so it can sit in a menu beside "by date added" or
+"by length".
+
+- A group header is a **label**, not a character. One character is the letter tile exactly as before;
+  a word ("july 2026", "10+ plays") keeps the tile's height and grows sideways at a smaller size. An
+  empty label draws no header, which is a flat list with the arrangement still doing the ordering.
+- Groups are **runs**: consecutive rows sharing a label. A header that disagrees with its comparator
+  therefore shows a repeated heading rather than quietly moving rows out of the order the comparator
+  asked for.
+- Pass `sorts` and the header becomes a control as well as a heading: holding it offers those
+  arrangements in `MetroListBox`, with the one in force in accent, and `onSortSelected` gets the index
+  picked. Where the arrangement has no `jumpDomain` to zoom out to, a *tap* opens that menu too —
+  otherwise the handle would go dead on every arrangement but the alphabet, and the way back to "by
+  name" would be a gesture that no longer does anything.
+- `jumpDomain` is what makes the zoom-out grid optional: it answers "given the labels present, what is
+  the whole alphabet", and is null for the arrangements that have no such domain.
+
+The `group: (T) -> Char` overload is untouched and behaves as it did, rows included — it delegates to
+the same implementation with a stable sort by letter.
+
+**`MetroListBox` takes `selected`**, drawing that row in accent: the picker standing for a setting
+rather than for an action. A picker offering four ways to sort that says nothing about which one you
+are looking at makes the user pick one to find out.
+
 ## 1.0.0
 
 First release. The API is considered stable from here: parameters get appended, not reordered

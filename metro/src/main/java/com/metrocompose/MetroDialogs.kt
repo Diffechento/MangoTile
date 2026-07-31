@@ -344,6 +344,10 @@ fun MetroInputBox(
 /**
  * WP8's list picker: a modal panel offering one choice out of many. The list scrolls when it
  * has to, so it copes with "add to one of forty playlists" as well as with three options.
+ *
+ * [selected] marks the choice already in force, in accent — which is what the control does when it
+ * is standing for a *setting* rather than for an action. A picker that offers four ways to sort a
+ * list and says nothing about which one you are looking at makes the user pick one to find out.
  */
 @Composable
 fun MetroListBox(
@@ -352,7 +356,8 @@ fun MetroListBox(
     items: List<String>,
     onSelect: (Int) -> Unit,
     onDismiss: () -> Unit,
-    emptyText: String = "nothing here yet"
+    emptyText: String = "nothing here yet",
+    selected: Int? = null
 ) {
     val colors = MetroTheme.colors
     MetroModalPanel(visible = visible, onDismiss = onDismiss, title = title) {
@@ -369,7 +374,7 @@ fun MetroListBox(
                 itemsIndexed(items) { index, label ->
                     Text(
                         text = label,
-                        color = colors.fg,
+                        color = if (index == selected) colors.accent else colors.fg,
                         fontFamily = MetroRegular,
                         fontSize = 22.sp,
                         maxLines = 1,

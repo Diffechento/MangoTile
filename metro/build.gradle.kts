@@ -11,7 +11,10 @@ plugins {
 // alternative. The Kotlin package stays `com.metrocompose`: a groupId and a package name are
 // different things, so no source changes and no import churn for consumers.
 group = "io.github.diffechento"
-version = "1.0.0"
+// 1.0.1 is not on Central yet — it exists in mavenLocal only, on the owner's decision. A number of
+// its own rather than a second 1.0.0: two different jars under one coordinate build here and fail
+// everywhere else, and the failure is a compile error in a consumer that never asked for it.
+version = "1.0.1"
 
 android {
     namespace = "com.metrocompose"
