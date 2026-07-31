@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PageSize
@@ -46,10 +47,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onPlaced
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.PlatformTextStyle
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
@@ -81,6 +85,74 @@ private const val AwayHeaderAlpha = 0.42f
 
 /** Smallest gap between two copies of a wrapping panorama's title. */
 private val TitleRepeatGap = 64.dp
+
+/**
+ * How the space above and below the giant title is spent, and why it is this little.
+ *
+ * The title clears the status bar by *inset* rather than by a hand-picked number, so a phone with a
+ * tall bar or a cutout does not overlap it and one with a short bar does not pay for the worst case;
+ * [PanoramaTitleTop] is only the breathing room under that. Both are deliberately small: a panorama's
+ * height is spent on the section under the title, and the phone's own panorama sets the title close
+ * under the clock with the section header tucked in beneath it.
+ *
+ * The text itself is measured with `includeFontPadding = false` — Android's extra line padding around
+ * a 108sp line is tens of dp of nothing that reads as a layout decision nobody made.
+ */
+private val PanoramaTitleTop = 6.dp
+private val PanoramaTitleGap = 6.dp
+private val PanoramaHeaderGap = 12.dp
+
+/** No leading of Android's own around the big text; the gaps above are the whole spacing. */
+private val TightText = TextStyle(platformStyle = PlatformTextStyle(includeFontPadding = false))
+
+/** The giant title's size, and its own tight style. */
+private val PanoramaTitleSize = 108.sp
+private val TightTitle = TextStyle(
+    fontSize = PanoramaTitleSize,
+    platformStyle = PlatformTextStyle(includeFontPadding = false)
+)
+
+/**
+ * The blank the *font* reserves above the capitals and below the baseline of a 108sp line, measured
+ * off the screen: 30dp over the letters and 16dp under them, out of a 131dp line box holding 77dp of
+ * ink. It is trimmed by [trimVertically] rather than by a line height, because a line height cannot
+ * take it away — `lineHeight` shrinks the *leading* between lines, and this is the ascent and descent
+ * themselves. Asking for less than them simply gets the ascent and descent back, which is a whole
+ * round spent proving.
+ *
+ * Left as generous numbers rather than exact ones: they are Selawik's at this size, and a hair of
+ * slack costs a few pixels where a hair too far clips a descender.
+ */
+private val TitleInkTop = 30.dp
+private val TitleInkBottom = 16.dp
+
+/**
+ * Shortens a node's *layout* by [top] and [bottom] and lifts its content into the space, so the thing
+ * above it and the thing below it both close in on what is actually drawn.
+ *
+ * Nothing is clipped: the content is placed at a negative offset, which draws outside the node's
+ * bounds, and neither the panorama's column nor the title's own box clips.
+ */
+private fun Modifier.trimVertically(top: Dp, bottom: Dp) = layout { measurable, constraints ->
+    val placeable = measurable.measure(constraints)
+    val trimmed = (placeable.height - (top + bottom).roundToPx()).coerceAtLeast(0)
+    layout(placeable.width, trimmed) {
+        placeable.place(0, -top.roundToPx())
+    }
+}
+
+/** The title block, which either gives its height up to the sections or does not. */
+@Composable
+private fun CollapsingTitle(
+    collapsing: Boolean,
+    collapse: MetroCollapse,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    Column(
+        modifier = if (collapsing) Modifier.metroCollapsingHeader(collapse, overhang = TitleInkBottom) else Modifier,
+        content = content
+    )
+}
 
 /**
  * Where each section begins, as a scroll position. Sections put themselves in as they are placed
@@ -176,16 +248,21 @@ fun MetroPanorama(
     background: (@Composable BoxScope.() -> Unit)? = null,
     snap: Boolean = true,
     sectionPadding: Dp = 26.dp,
+    titleTopPadding: Dp = PanoramaTitleTop,
+    titleGap: Dp = PanoramaTitleGap,
+    collapsingTitle: Boolean = true,
     sections: @Composable RowScope.() -> Unit
 ) {
     val colors = MetroTheme.colors
     val scroll = rememberScrollState()
     val stops = remember { PanoramaStops() }
     val fling = remember(scroll) { SnapToSections({ stops.scrollStops() }, scroll) }
+    val collapse = rememberMetroCollapse()
 
     BoxWithConstraints(
         modifier
             .fillMaxSize()
+            .then(if (collapsingTitle) Modifier.metroCollapseOnScroll(collapse) else Modifier)
             .then(if (LocalMetroHasBackdrop.current) Modifier else Modifier.background(colors.bg))
     ) {
         // Layer 1 — background, slowest.
@@ -213,34 +290,43 @@ fun MetroPanorama(
                 // navigation bar, so the parallax runs to the bottom edge of the screen and the
                 // last row of a section still stops above the gesture pill.
                 .navigationBarsPadding()
-                .padding(top = 52.dp, bottom = 32.dp)
+                .statusBarsPadding()
+                .clipToBounds()
+                .padding(top = titleTopPadding, bottom = 32.dp)
         ) {
-            if (overline != null) {
+            // The name of the place, which gives up its height to the section once you start reading
+            // one — see [MetroCollapse]. Overline and title go together: a lone overline left above
+            // the sections would be a label with nothing under it.
+            Column(if (collapsingTitle) Modifier.metroCollapsingHeader(collapse, overhang = TitleInkBottom) else Modifier) {
+                if (overline != null) {
+                    Text(
+                        text = overline,
+                        color = colors.fg,
+                        fontFamily = MetroSemilight,
+                        fontSize = 14.sp,
+                        letterSpacing = 2.sp,
+                        style = TightText,
+                        modifier = Modifier.padding(start = 26.dp, bottom = 2.dp)
+                    )
+                }
+
+                // Layer 2 — the giant title, medium speed, allowed to bleed off the edge.
                 Text(
-                    text = overline,
+                    text = title,
                     color = colors.fg,
-                    fontFamily = MetroSemilight,
-                    fontSize = 14.sp,
-                    letterSpacing = 2.sp,
-                    modifier = Modifier.padding(start = 26.dp, bottom = 2.dp)
+                    fontFamily = MetroLight,
+                    maxLines = 1,
+                    softWrap = false,
+                    overflow = TextOverflow.Visible,
+                    style = TightTitle,
+                    modifier = Modifier
+                        .trimVertically(TitleInkTop, TitleInkBottom)
+                        .padding(start = 22.dp)
+                        .graphicsLayer { translationX = -scroll.value * titleParallax }
                 )
             }
 
-            // Layer 2 — the giant title, medium speed, allowed to bleed off the edge.
-            Text(
-                text = title,
-                color = colors.fg,
-                fontFamily = MetroLight,
-                fontSize = 108.sp,
-                maxLines = 1,
-                softWrap = false,
-                overflow = TextOverflow.Visible,
-                modifier = Modifier
-                    .padding(start = 22.dp)
-                    .graphicsLayer { translationX = -scroll.value * titleParallax }
-            )
-
-            Spacer(Modifier.height(28.dp))
+            Spacer(Modifier.height(titleGap))
 
             // Layer 3 — sections, the full-speed foreground that drives the scroll.
             //
@@ -329,6 +415,10 @@ fun MetroPanorama(
     sectionPadding: Dp = 26.dp,
     sectionPeek: Dp = 96.dp,
     headerFontSize: TextUnit = 48.sp,
+    titleTopPadding: Dp = PanoramaTitleTop,
+    titleGap: Dp = PanoramaTitleGap,
+    headerGap: Dp = PanoramaHeaderGap,
+    collapsingTitle: Boolean = true,
     /**
      * Whether the backdrop may be drawn twice to make the loop seamless. True for a drawing that
      * ends where it begins — a gradient, a pattern — which is what lets it scroll for ever. Pass
@@ -354,9 +444,12 @@ fun MetroPanorama(
         if (wrapping) Int.MAX_VALUE else count
     }
 
+    val collapse = rememberMetroCollapse()
+
     BoxWithConstraints(
         modifier
             .fillMaxSize()
+            .then(if (collapsingTitle) Modifier.metroCollapseOnScroll(collapse) else Modifier)
             .then(if (LocalMetroHasBackdrop.current) Modifier else Modifier.background(colors.bg))
     ) {
         if (count == 0) return@BoxWithConstraints
@@ -451,8 +544,20 @@ fun MetroPanorama(
                 // applies for you). Insetting the whole column instead is the obvious version and
                 // looks wrong: the list stops dead a finger's width above the bottom of the screen,
                 // a row sliced in half, with bare background underneath and nothing to explain it.
-                .padding(top = 52.dp)
+                //
+                // The *top* is inset, because the title has to clear the status bar and only the
+                // window knows how tall that is here.
+                .statusBarsPadding()
+                // And clipped there, so a title rolling away disappears behind the status bar rather
+                // than sliding across the clock: what collapses is placed above its own bounds, and
+                // this is the edge it should vanish at.
+                .clipToBounds()
+                .padding(top = titleTopPadding)
         ) {
+            // The name of the place, which gives up its height to the section once you start reading
+            // one — see [MetroCollapse]. Overline and title go together: a lone overline left above
+            // the sections would be a label with nothing under it.
+            CollapsingTitle(collapsingTitle, collapse) {
             if (overline != null) {
                 Text(
                     text = overline,
@@ -460,6 +565,7 @@ fun MetroPanorama(
                     fontFamily = MetroSemilight,
                     fontSize = 14.sp,
                     letterSpacing = 2.sp,
+                    style = TightText,
                     modifier = Modifier.padding(start = 26.dp, bottom = 2.dp)
                 )
             }
@@ -481,6 +587,7 @@ fun MetroPanorama(
 
             Box(
                 Modifier
+                    .trimVertically(TitleInkTop, TitleInkBottom)
                     .padding(start = 22.dp)
                     .graphicsLayer {
                         val moved = travelled() * titleParallax
@@ -492,10 +599,10 @@ fun MetroPanorama(
                         text = title,
                         color = colors.fg,
                         fontFamily = MetroLight,
-                        fontSize = 108.sp,
                         maxLines = 1,
                         softWrap = false,
                         overflow = TextOverflow.Visible,
+                        style = TightTitle,
                         modifier = Modifier
                             // Measured at its natural width, not at the window's: a title wider
                             // than the screen is the norm here, and measuring it clamped feeds a
@@ -508,8 +615,9 @@ fun MetroPanorama(
                     )
                 }
             }
+            }
 
-            Spacer(Modifier.height(28.dp))
+            Spacer(Modifier.height(titleGap))
 
             // Layer 3 — the section headers, on their own and slower than what they name.
             //
@@ -535,6 +643,7 @@ fun MetroPanorama(
                         maxLines = 1,
                         softWrap = false,
                         overflow = TextOverflow.Visible,
+                        style = TightText,
                         modifier = Modifier
                             // Natural width; the layout box would otherwise clamp a long header to
                             // the window and the ellipsis would appear before the peek does.
@@ -561,7 +670,7 @@ fun MetroPanorama(
                 }
             }
 
-            Spacer(Modifier.height(18.dp))
+            Spacer(Modifier.height(headerGap))
 
             // Layer 4 — the content, full width, one section per page. A pager gives the snapping,
             // the laziness and the endless page range for nothing.

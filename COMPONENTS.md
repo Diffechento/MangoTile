@@ -78,6 +78,10 @@ class FavoritesTile : MetroWidgetProvider() {
   in accent.
 - **`ListRow`, `SettingRow`** — long-list and settings rows.
 - **`MetroBottomInset`** — the gap a list needs at its end so its last row clears the gesture pill.
+- **`MetroCollapse`** — a header that rolls away with the list under it and comes back when that list is
+  dragged past its top. It gives up its height, so the list grows into the space; `metroCollapsingHeader`
+  on the header, `metroCollapseOnScroll` on an ancestor of the list, and a clip on whatever edge it
+  should vanish behind. The panorama's title uses it (`collapsingTitle`).
 
 ## Controls
 

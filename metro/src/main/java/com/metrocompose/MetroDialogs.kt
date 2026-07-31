@@ -88,6 +88,13 @@ private val ItemHeight = 54.dp
 private val SheetPadding = 8.dp
 
 /**
+ * How solid a context menu's sheet is. Not quite: the page stays faintly legible through it, which is
+ * what says the menu was laid over where you were rather than having replaced it. The phone's own sheet
+ * is flat and opaque — pass `sheetAlpha = 1f` for that.
+ */
+private const val MenuSheetAlpha = 0.9f
+
+/**
  * Pins a popup's content to the window's top-left rather than to its anchor, so the content can
  * cover the screen and place its own children.
  *
@@ -132,6 +139,10 @@ private object WindowOriginPosition : PopupPositionProvider {
  * The sheet is as wide as its widest label, and never narrower than the anchor. A row therefore gets
  * the full-width sheet it always had, while something small — a group header's letter tile — gets a
  * menu you can read instead of a 44dp column of wrapped words.
+ *
+ * [sheetAlpha] leaves the page faintly readable through the sheet, so the menu is something laid over
+ * where you were rather than a new screen that replaced it. Pass 1f for the phone's own flat opaque
+ * sheet. The labels stay fully opaque either way — the paper is translucent, the ink is not.
  */
 @Composable
 fun MetroContextMenu(
@@ -142,6 +153,7 @@ fun MetroContextMenu(
     modifier: Modifier = Modifier,
     disabledItems: Set<Int> = emptySet(),
     selectedItem: Int? = null,
+    sheetAlpha: Float = MenuSheetAlpha,
     content: @Composable () -> Unit
 ) {
     val colors = MetroTheme.colors
@@ -267,7 +279,7 @@ fun MetroContextMenu(
                                     TransformOrigin(0.5f, if (downward) 0f else 1f)
                                 scaleY = unfold.value
                             }
-                            .background(colors.fg)
+                            .background(colors.fg.copy(alpha = sheetAlpha))
                             .padding(vertical = SheetPadding)
                     ) {
                         Spacer(Modifier.width(anchorWidth).height(0.dp))
