@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
@@ -123,6 +124,14 @@ private object WindowOriginPosition : PopupPositionProvider {
  * than hiding it — the menu keeps the same shape every time you open it, so you learn where each
  * entry is, and a greyed one tells you *why* nothing happens where hiding it would leave you
  * wondering whether you remembered the menu wrong.
+ *
+ * [selectedItem] draws one entry in accent, for a menu that is choosing between states rather than
+ * offering actions — the arrangements of a [MetroLongList] are held this way. A menu of four ways to
+ * sort that says nothing about which one you are looking at makes the user pick one to find out.
+ *
+ * The sheet is as wide as its widest label, and never narrower than the anchor. A row therefore gets
+ * the full-width sheet it always had, while something small — a group header's letter tile — gets a
+ * menu you can read instead of a 44dp column of wrapped words.
  */
 @Composable
 fun MetroContextMenu(
@@ -132,6 +141,7 @@ fun MetroContextMenu(
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
     disabledItems: Set<Int> = emptySet(),
+    selectedItem: Int? = null,
     content: @Composable () -> Unit
 ) {
     val colors = MetroTheme.colors
@@ -247,7 +257,11 @@ fun MetroContextMenu(
                     Column(
                         Modifier
                             .offset(x = anchorLeft, y = sheetTop)
-                            .width(anchorWidth)
+                            // The widest label decides the width, and the invisible spacer below puts
+                            // the anchor's own width into that maximum — so a full-width row keeps the
+                            // full-width sheet it has always had, and a letter tile gets a sheet wide
+                            // enough to read rather than one 44dp column of broken words.
+                            .width(IntrinsicSize.Max)
                             .graphicsLayer {
                                 transformOrigin =
                                     TransformOrigin(0.5f, if (downward) 0f else 1f)
@@ -256,13 +270,19 @@ fun MetroContextMenu(
                             .background(colors.fg)
                             .padding(vertical = SheetPadding)
                     ) {
+                        Spacer(Modifier.width(anchorWidth).height(0.dp))
                         items.forEachIndexed { i, label ->
                             val usable = i !in disabledItems
                             Text(
                                 text = label,
-                                color = if (usable) colors.bg else colors.bg.copy(alpha = 0.35f),
+                                color = when {
+                                    !usable -> colors.bg.copy(alpha = 0.35f)
+                                    i == selectedItem -> colors.accent
+                                    else -> colors.bg
+                                },
                                 fontFamily = MetroRegular,
                                 fontSize = 22.sp,
+                                maxLines = 1,
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clickable(enabled = usable) { onSelect(i) }
@@ -344,10 +364,6 @@ fun MetroInputBox(
 /**
  * WP8's list picker: a modal panel offering one choice out of many. The list scrolls when it
  * has to, so it copes with "add to one of forty playlists" as well as with three options.
- *
- * [selected] marks the choice already in force, in accent — which is what the control does when it
- * is standing for a *setting* rather than for an action. A picker that offers four ways to sort a
- * list and says nothing about which one you are looking at makes the user pick one to find out.
  */
 @Composable
 fun MetroListBox(
@@ -356,8 +372,7 @@ fun MetroListBox(
     items: List<String>,
     onSelect: (Int) -> Unit,
     onDismiss: () -> Unit,
-    emptyText: String = "nothing here yet",
-    selected: Int? = null
+    emptyText: String = "nothing here yet"
 ) {
     val colors = MetroTheme.colors
     MetroModalPanel(visible = visible, onDismiss = onDismiss, title = title) {
@@ -374,7 +389,7 @@ fun MetroListBox(
                 itemsIndexed(items) { index, label ->
                     Text(
                         text = label,
-                        color = if (index == selected) colors.accent else colors.fg,
+                        color = colors.fg,
                         fontFamily = MetroRegular,
                         fontSize = 22.sp,
                         maxLines = 1,

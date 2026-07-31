@@ -225,16 +225,16 @@ fun <T> MetroLongList(
  * header above each run of them says. See [MetroListSort].
  *
  * A **tap** on a header zooms out over the screen, whatever the arrangement: the alphabet by name, the
- * months by date, the bands by length. A **hold** offers [sorts] in a WP8 list picker with the one in
- * force in accent, and [onSortSelected] gets the index picked; the caller keeps the choice, so it can
- * be remembered across launches. The two gestures stay what they are on every arrangement — a tap that
- * meant "zoom out" under one heading and "choose an arrangement" under the next would teach the user
- * one thing and then do another.
+ * months by date, the bands by length. A **hold** unrolls [sorts] out of the header itself — the WP8
+ * context menu, the same one a held row gets, so the menu comes out of the thing you pressed with the
+ * arrangement in force in accent — and [onSortSelected] gets the index picked; the caller keeps the
+ * choice, so it can be remembered across launches. The two gestures stay what they are on every
+ * arrangement — a tap that meant "zoom out" under one heading and "choose an arrangement" under the
+ * next would teach the user one thing and then do another.
  *
  *   MetroLongList(
  *       items = songs, key = { it.id },
  *       sort = sorts[current], sorts = sorts,
- *       sortTitle = "sort by",
  *       onSortSelected = { current = it }
  *   ) { song -> ListRow(song.title, song.artist) }
  */
@@ -247,13 +247,14 @@ fun <T> MetroLongList(
     state: LazyListState = rememberLazyListState(),
     filledGroupHeaders: Boolean = true,
     sorts: List<MetroListSort<T>> = emptyList(),
-    sortTitle: String = "sort by",
     onSortSelected: (Int) -> Unit = {},
     row: @Composable (T) -> Unit
 ) {
     val scope = rememberCoroutineScope()
     var jumpOpen by remember { mutableStateOf(false) }
-    var sortOpen by remember { mutableStateOf(false) }
+    // Which header is holding the menu open. The menu unrolls out of its own header, so it belongs to
+    // one of them rather than to the list — two headers are on screen at once as often as not.
+    var sortMenuFor by remember { mutableStateOf<Int?>(null) }
 
     val groups = remember(items, sort) {
         val ordered = items.sortedWith(sort.comparator)
@@ -289,8 +290,8 @@ fun <T> MetroLongList(
         val present = groups.map { it.label }.filter { it.isNotEmpty() }
         sort.jumpDomain?.invoke(present.toSet()) ?: present.distinct()
     }
-    val openSorts = if (sorts.isEmpty()) null else ({ sortOpen = true })
     val openGrid = if (jumpLabels.isEmpty()) null else ({ jumpOpen = true })
+    val selectedSort = sorts.indexOfFirst { it.name == sort.name }.takeIf { it >= 0 }
 
     Box(modifier.fillMaxSize()) {
         LazyColumn(Modifier.fillMaxSize(), state = state) {
@@ -300,14 +301,38 @@ fun <T> MetroLongList(
                     // arrangement's runs are: a `header` that disagrees with its comparator repeats
                     // one, and two lazy items under one key is a crash rather than a wrong heading.
                     item(key = "metro-group-$index-${g.label}", contentType = "header") {
-                        GroupHeader(
-                            label = g.label,
-                            enabled = true,
-                            modifier = Modifier.padding(start = 24.dp, top = 14.dp, bottom = 6.dp),
-                            filled = filledGroupHeaders,
-                            onClick = openGrid,
-                            onLongClick = openSorts
-                        )
+                        // The gap around the header is outside the menu's anchor on purpose: the
+                        // anchor is what lights up under the sheet and what the strip spreads across,
+                        // and padding inside it would light up a block bigger than the tile.
+                        Box(Modifier.padding(start = 24.dp, top = 14.dp, bottom = 6.dp)) {
+                            if (sorts.isEmpty()) {
+                                GroupHeader(
+                                    label = g.label,
+                                    enabled = true,
+                                    filled = filledGroupHeaders,
+                                    onClick = openGrid
+                                )
+                            } else {
+                                MetroContextMenu(
+                                    expanded = sortMenuFor == index,
+                                    items = sorts.map { it.name },
+                                    selectedItem = selectedSort,
+                                    onSelect = { picked ->
+                                        sortMenuFor = null
+                                        onSortSelected(picked)
+                                    },
+                                    onDismiss = { sortMenuFor = null }
+                                ) {
+                                    GroupHeader(
+                                        label = g.label,
+                                        enabled = true,
+                                        filled = filledGroupHeaders,
+                                        onClick = openGrid,
+                                        onLongClick = { sortMenuFor = index }
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
                 items(g.items, key = key, contentType = { "row" }) { item -> row(item) }
@@ -349,20 +374,6 @@ fun <T> MetroLongList(
             }
         }
     }
-
-    // The arrangements on offer, as WP8's list picker: a short list of one-line choices with the
-    // current one in accent, which is what that control is for.
-    MetroListBox(
-        visible = sortOpen,
-        title = sortTitle,
-        items = sorts.map { it.name },
-        selected = sorts.indexOfFirst { it.name == sort.name }.takeIf { it >= 0 },
-        onSelect = { index ->
-            sortOpen = false
-            onSortSelected(index)
-        },
-        onDismiss = { sortOpen = false }
-    )
 
     if (jumpOpen) BackHandler { jumpOpen = false }
 }

@@ -74,7 +74,8 @@ class FavoritesTile : MetroWidgetProvider() {
   out on a tap — letters as the grid of squares, words as a scrolling column of blocks — and
   `jumpDomain` is only how a closed domain (the alphabet, four length bands) gets its empty buckets
   shown dimmed; the default is the groups the list actually has. Pass a list of arrangements as
-  `sorts` and a **hold** on the header offers them in a picker, the one in force in accent.
+  `sorts` and a **hold** on a header unrolls them out of it as a `MetroContextMenu`, the one in force
+  in accent.
 - **`ListRow`, `SettingRow`** — long-list and settings rows.
 - **`MetroBottomInset`** — the gap a list needs at its end so its last row clears the gesture pill.
 
@@ -107,7 +108,9 @@ class FavoritesTile : MetroWidgetProvider() {
   keeps the same shape every time you open it. The context menu opens in two beats, as the phone
   does: the held item lights up and a hairline spreads from the point you touched to the item's
   edges, and only once it gets there does the sheet unroll out of it — labels squashing with the
-  sheet, so it reads as one flat thing being unrolled.
+  sheet, so it reads as one flat thing being unrolled. `selectedItem` puts one entry in accent, for a
+  menu choosing between states rather than offering actions. The sheet is as wide as its widest label
+  and never narrower than the anchor, so it works held off a full-width row or off a 44dp tile.
 - **`MetroBottomBar`** — a strip along the bottom that comes and goes, handing its space back *as*
   it leaves rather than all at once at the end. **`MetroRisingPage`** is its other half: a page
   that comes up out of that strip and drops back into it.

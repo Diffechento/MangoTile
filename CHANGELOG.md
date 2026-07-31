@@ -22,17 +22,22 @@ A–Z one this list has always had, spelled that way so it can sit in a menu bes
   it answers with the whole domain and the empty ones are dimmed and inert. Null — the default — means
   the groups themselves, which is the right answer for an open-ended arrangement: there is no set of
   all months, only the months your files were added in.
-- Pass `sorts` and a **hold** on the header offers those arrangements in `MetroListBox`, with the one in
-  force in accent, and `onSortSelected` gets the index picked. Tap and hold keep their meanings on every
-  arrangement: a tap that meant "zoom out" under one heading and "choose an arrangement" under the next
-  would teach the user one thing and then do another.
+- Pass `sorts` and a **hold** on a header unrolls them out of that header — `MetroContextMenu`, the
+  same menu a held row gets, so the arrangements come out of the thing you pressed — and
+  `onSortSelected` gets the index picked. Tap and hold keep their meanings on every arrangement: a tap
+  that meant "zoom out" under one heading and "choose an arrangement" under the next would teach the
+  user one thing and then do another.
 
 The `group: (T) -> Char` overload is untouched and behaves as it did, rows included — it delegates to
 the same implementation with a stable sort by letter.
 
-**`MetroListBox` takes `selected`**, drawing that row in accent: the picker standing for a setting
-rather than for an action. A picker offering four ways to sort that says nothing about which one you
-are looking at makes the user pick one to find out.
+**`MetroContextMenu` takes `selectedItem`**, drawing that entry in accent: the menu choosing between
+states rather than offering actions, which is what a list's arrangements are. A menu of four ways to
+sort that says nothing about which one you are looking at makes the user pick one to find out.
+
+**And its sheet is as wide as its widest label, never narrower than the anchor.** A row keeps the
+full-width sheet it always had; something small — a 44dp letter tile — gets a menu you can read
+instead of a column of broken words.
 
 ## 1.0.0
 
