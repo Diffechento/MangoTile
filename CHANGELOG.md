@@ -71,7 +71,11 @@ if a caller wants the air back:
 states rather than offering actions, which is what a list's arrangements are. A menu of four ways to
 sort that says nothing about which one you are looking at makes the user pick one to find out.
 
-**Its sheet is now slightly translucent** (`sheetAlpha`, 0.9 by default; pass 1f for the phone's own
+**The zoom-out is translucent too** — the list you pulled back from stays faintly behind its groups, so
+it reads as the same page zoomed out rather than as a different screen you were sent to. WP8's own was
+opaque; on a library of four buckets, opaque is four blocks floating in a void.
+
+**A context menu's sheet is now slightly translucent** (`sheetAlpha`, 0.9 by default; pass 1f for the phone's own
 flat opaque one), so the page stays faintly legible through it and the menu reads as something laid over
 where you were. The labels stay fully opaque — the paper is translucent, the ink is not.
 

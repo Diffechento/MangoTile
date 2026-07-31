@@ -480,7 +480,11 @@ private fun JumpGrid(
     BoxWithConstraints(
         Modifier
             .fillMaxSize()
-            .background(colors.bg)
+            // Not quite solid: the list you zoomed out of stays faintly there behind the groups, so
+            // this reads as the same page pulled back rather than as a different screen you were sent
+            // to. WP8's own zoom-out was opaque; on a phone-sized library of four buckets, opaque is
+            // four blocks floating in a void with nothing to say where they came from.
+            .background(colors.bg.copy(alpha = ZoomOutAlpha))
             .clickable(indication = null, interactionSource = null) { onDismiss() },
         contentAlignment = Alignment.Center
     ) {
@@ -527,3 +531,6 @@ private fun JumpGrid(
 
 /** A word block in the zoom-out, a shade taller than the heading it stands for. */
 private val WordTileHeight = 52.dp
+
+/** How solid the zoom-out is over the list it came from. */
+private const val ZoomOutAlpha = 0.86f
