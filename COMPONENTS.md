@@ -70,10 +70,11 @@ class FavoritesTile : MetroWidgetProvider() {
   actually uses (both, and it switches to seven narrower tiles so sixty letters still fit).
 - **`MetroListSort`** — the same list arranged by anything else: a name, a comparator, and the label
   the header above each run of rows carries ("july 2026", "10+ plays"; `""` for no header at all).
-  `MetroListSort.alphabetical` is the A–Z arrangement written as one of these. Pass a list of them as
-  `sorts` and the header becomes the handle for choosing between them — hold it for the picker, with
-  the one in force in accent; where an arrangement has no `jumpDomain` there is no grid to zoom out
-  to, so a tap opens that picker as well.
+  `MetroListSort.alphabetical` is the A–Z arrangement written as one of these. Every arrangement zooms
+  out on a tap — letters as the grid of squares, words as a scrolling column of blocks — and
+  `jumpDomain` is only how a closed domain (the alphabet, four length bands) gets its empty buckets
+  shown dimmed; the default is the groups the list actually has. Pass a list of arrangements as
+  `sorts` and a **hold** on the header offers them in a picker, the one in force in accent.
 - **`ListRow`, `SettingRow`** — long-list and settings rows.
 - **`MetroBottomInset`** — the gap a list needs at its end so its last row clears the gesture pill.
 

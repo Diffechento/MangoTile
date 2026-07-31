@@ -14,13 +14,18 @@ A–Z one this list has always had, spelled that way so it can sit in a menu bes
 - Groups are **runs**: consecutive rows sharing a label. A header that disagrees with its comparator
   therefore shows a repeated heading rather than quietly moving rows out of the order the comparator
   asked for.
-- Pass `sorts` and the header becomes a control as well as a heading: holding it offers those
-  arrangements in `MetroListBox`, with the one in force in accent, and `onSortSelected` gets the index
-  picked. Where the arrangement has no `jumpDomain` to zoom out to, a *tap* opens that menu too —
-  otherwise the handle would go dead on every arrangement but the alphabet, and the way back to "by
-  name" would be a gesture that no longer does anything.
-- `jumpDomain` is what makes the zoom-out grid optional: it answers "given the labels present, what is
-  the whole alphabet", and is null for the arrangements that have no such domain.
+- **Every arrangement zooms out.** A tap on a header still opens the whole set of groups over the
+  screen and jumps to the one picked — the alphabet by name, the months by date, the bands by length.
+  Letters keep the phone's grid of squares; words are a column of blocks the width of their own text,
+  and it scrolls, because a library added to over four years has fifty months in it.
+- `jumpDomain` now only says what that screen shows *besides* what is there: given the labels present,
+  it answers with the whole domain and the empty ones are dimmed and inert. Null — the default — means
+  the groups themselves, which is the right answer for an open-ended arrangement: there is no set of
+  all months, only the months your files were added in.
+- Pass `sorts` and a **hold** on the header offers those arrangements in `MetroListBox`, with the one in
+  force in accent, and `onSortSelected` gets the index picked. Tap and hold keep their meanings on every
+  arrangement: a tap that meant "zoom out" under one heading and "choose an arrangement" under the next
+  would teach the user one thing and then do another.
 
 The `group: (T) -> Char` overload is untouched and behaves as it did, rows included — it delegates to
 the same implementation with a stable sort by letter.

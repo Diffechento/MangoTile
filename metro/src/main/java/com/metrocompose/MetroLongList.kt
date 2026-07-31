@@ -23,6 +23,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
@@ -100,11 +102,20 @@ fun metroGroupChar(text: String): Char {
  * The label is drawn as it is given. WP8's own group headers are lowercase, which is what
  * [alphabetical] produces.
  *
- * [jumpDomain] answers "given the labels this list actually has, what is the whole alphabet" — the
- * grid then dims the buckets that are empty, exactly as WP8 does. It is null for the arrangements
- * that have no such domain: a length or a play count has nothing to zoom out to, and for those a tap
- * on the header opens the sort menu instead. Domain labels are single characters, because the grid
- * lays them out as squares.
+ * **Every arrangement zooms out.** A tap on a header opens the whole set of groups over the screen and
+ * jumps to the one picked — the alphabet for [alphabetical], the months for a list by date, the bands
+ * for a list by length. That is what the header does in WP8 and what it must keep doing here: an
+ * arrangement whose header answered a tap with nothing would be a control that works on one setting
+ * and is dead on the rest.
+ *
+ * [jumpDomain] is only about what that screen shows *besides* what is there: given the labels the list
+ * has, it answers with the whole domain, and the ones with nothing in them are dimmed and inert, as
+ * WP8 dims the letters you own no artists under. Null — the default — means the groups themselves, in
+ * the order the list has them, which is the right answer whenever the domain is open-ended: there is no
+ * "whole set of months", only the months your files were added in.
+ *
+ * The screen lays single-character labels out as the phone's grid of squares and words as a column of
+ * blocks, so a domain may be either.
  *
  * Hold a sort in a `remember`: the list re-sorts when the object changes, so a fresh one per
  * recomposition would sort the whole list on every frame.
@@ -213,12 +224,12 @@ fun <T> MetroLongList(
  * The LongListSelector arranged by anything: [sort] decides the order of the rows and what the
  * header above each run of them says. See [MetroListSort].
  *
- * Pass [sorts] to make the header a control as well as a heading — holding it offers those
- * arrangements in a WP8 list picker, with the one in force in accent, and [onSortSelected] gets the
- * index picked. The caller keeps the choice, so it can be remembered across launches. When [sort]
- * has no [MetroListSort.jumpDomain] to zoom out to, a *tap* on the header opens that menu too:
- * without it the handle would go dead on every arrangement but the alphabet, and the way back to
- * "by name" would be a gesture that no longer does anything.
+ * A **tap** on a header zooms out over the screen, whatever the arrangement: the alphabet by name, the
+ * months by date, the bands by length. A **hold** offers [sorts] in a WP8 list picker with the one in
+ * force in accent, and [onSortSelected] gets the index picked; the caller keeps the choice, so it can
+ * be remembered across launches. The two gestures stay what they are on every arrangement — a tap that
+ * meant "zoom out" under one heading and "choose an arrangement" under the next would teach the user
+ * one thing and then do another.
  *
  *   MetroLongList(
  *       items = songs, key = { it.id },
@@ -270,12 +281,16 @@ fun <T> MetroLongList(
         groups.map { g -> index.also { index += g.items.size + if (g.label.isEmpty()) 0 else 1 } }
     }
 
-    // Only meaningful for an arrangement that has a domain; the grid is not offered otherwise.
-    val alphabet = remember(groups, sort) {
-        sort.jumpDomain?.invoke(groups.map { it.label }.toSet())
+    // What the zoom-out shows: the whole domain where the arrangement has one — the alphabet, with the
+    // letters you own nothing under dimmed — and otherwise the groups themselves. There is no set of
+    // all months, only the months the files were added in, so an open-ended arrangement zooms out over
+    // what it has rather than over nothing.
+    val jumpLabels = remember(groups, sort) {
+        val present = groups.map { it.label }.filter { it.isNotEmpty() }
+        sort.jumpDomain?.invoke(present.toSet()) ?: present.distinct()
     }
     val openSorts = if (sorts.isEmpty()) null else ({ sortOpen = true })
-    val openGrid = if (alphabet == null) openSorts else ({ jumpOpen = true })
+    val openGrid = if (jumpLabels.isEmpty()) null else ({ jumpOpen = true })
 
     Box(modifier.fillMaxSize()) {
         LazyColumn(Modifier.fillMaxSize(), state = state) {
@@ -310,7 +325,7 @@ fun <T> MetroLongList(
         // is a column of about 320dp, and five 58dp tiles in a row do not fit in that.
         val grid = remember { MutableTransitionState(false) }
         grid.targetState = jumpOpen
-        if (alphabet != null && (grid.currentState || grid.targetState)) {
+        if (jumpLabels.isNotEmpty() && (grid.currentState || grid.targetState)) {
             Popup(
                 properties = PopupProperties(focusable = true),
                 onDismissRequest = { jumpOpen = false }
@@ -321,7 +336,7 @@ fun <T> MetroLongList(
                     exit = fadeOut(tween(140)) + scaleOut(tween(140), targetScale = 0.85f)
                 ) {
                     JumpGrid(
-                        alphabet = alphabet,
+                        labels = jumpLabels,
                         available = groups.map { it.label }.toSet(),
                         onPick = { label ->
                             val i = groups.indexOfFirst { it.label == label }
@@ -429,21 +444,27 @@ private fun headerFontSize(tileSize: Dp, single: Boolean): TextUnit =
     if (single) (tileSize.value * 0.5f).sp else (tileSize.value * 0.41f).sp
 
 /**
- * The zoomed-out alphabet. Empty buckets are dimmed and inert, exactly like WP8.
+ * The zoomed-out set of groups. Empty buckets are dimmed and inert, exactly like WP8.
  *
- * The grid sizes itself: a Latin-only list gets the phone's five big tiles, and a list that also
- * needs Cyrillic gets seven smaller ones, because sixty tiles five to a row are twice the height of
- * a screen. The tile is whatever the width allows, up to the phone's 58dp.
+ * Letters get the phone's grid: five big tiles to a row, or seven smaller ones once Cyrillic doubles
+ * the alphabet, because sixty tiles five to a row are twice the height of a screen. The tile is
+ * whatever the width allows, up to the phone's 58dp.
+ *
+ * Words ("july 2026", "10+ plays") cannot be squares, so they are a column of blocks the width of
+ * their own text — the same shape they have as headings in the list, which is what makes the zoom
+ * read as the same list pulled back rather than as another screen. It scrolls, because a library
+ * added to over four years has fifty months in it.
  */
 @Composable
 private fun JumpGrid(
-    alphabet: List<String>,
+    labels: List<String>,
     available: Set<String>,
     onPick: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
     val colors = MetroTheme.colors
-    val columns = if (alphabet.size > 32) 7 else 5
+    val squares = labels.all { it.length == 1 }
+    val columns = if (labels.size > 32) 7 else 5
 
     BoxWithConstraints(
         Modifier
@@ -453,23 +474,45 @@ private fun JumpGrid(
         contentAlignment = Alignment.Center
     ) {
         val gap = 8.dp
-        val tile = ((maxWidth - 40.dp - gap * (columns - 1)) / columns).coerceIn(28.dp, 58.dp)
-        Column(
-            Modifier.fillMaxWidth().padding(horizontal = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(gap)
-        ) {
-            alphabet.chunked(columns).forEach { rowLetters ->
-                Row(horizontalArrangement = Arrangement.spacedBy(gap)) {
-                    rowLetters.forEach { letter ->
-                        GroupHeader(
-                            label = letter,
-                            enabled = letter in available,
-                            tileSize = tile,
-                            onClick = { onPick(letter) }
-                        )
+        if (squares) {
+            val tile = ((maxWidth - 40.dp - gap * (columns - 1)) / columns).coerceIn(28.dp, 58.dp)
+            Column(
+                Modifier.fillMaxWidth().padding(horizontal = 20.dp),
+                verticalArrangement = Arrangement.spacedBy(gap)
+            ) {
+                labels.chunked(columns).forEach { rowLetters ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(gap)) {
+                        rowLetters.forEach { letter ->
+                            GroupHeader(
+                                label = letter,
+                                enabled = letter in available,
+                                tileSize = tile,
+                                onClick = { onPick(letter) }
+                            )
+                        }
                     }
+                }
+            }
+        } else {
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 20.dp, vertical = 24.dp),
+                verticalArrangement = Arrangement.spacedBy(gap)
+            ) {
+                labels.forEach { label ->
+                    GroupHeader(
+                        label = label,
+                        enabled = label in available,
+                        tileSize = WordTileHeight,
+                        onClick = { onPick(label) }
+                    )
                 }
             }
         }
     }
 }
+
+/** A word block in the zoom-out, a shade taller than the heading it stands for. */
+private val WordTileHeight = 52.dp
