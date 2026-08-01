@@ -21,6 +21,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -37,6 +38,7 @@ import com.metrocompose.MetroContextMenu
 import com.metrocompose.MetroInputBox
 import com.metrocompose.MetroLight
 import com.metrocompose.MetroListBox
+import com.metrocompose.MetroListSort
 import com.metrocompose.MetroLongList
 import com.metrocompose.MetroMessageBox
 import com.metrocompose.MetroPage
@@ -47,7 +49,6 @@ import com.metrocompose.MetroToggle
 import com.metrocompose.Pivot
 import com.metrocompose.Tile
 import com.metrocompose.MetroTheme
-import com.metrocompose.metroGroupChar
 
 // ---- Pivot, in both forms ----
 @Composable
@@ -100,6 +101,30 @@ fun PivotScreen() {
 }
 
 // ---- Jump-list (LongListSelector) ----
+
+// There is no library behind this demo, so a play count and a month added are derived from the
+// name itself: stable across recompositions, and enough to show all three kinds of heading the
+// list draws — a letter, a closed set of bands, and an open-ended run of months.
+private fun demoPlays(name: String) = (name.sumOf { it.code } * 7).mod(64)
+
+/** Newest first, so index 0 is this month — which is the order "date added" wants. */
+private val DemoMonths = listOf(
+    "august 2026", "july 2026", "june 2026", "may 2026", "april 2026", "march 2026",
+    "february 2026", "january 2026", "december 2025", "november 2025", "october 2025",
+    "september 2025", "august 2025", "july 2025"
+)
+
+private fun demoMonthIndex(name: String) = name.sumOf { it.code }.mod(DemoMonths.size)
+
+private val DemoPlayBands = listOf("50+ plays", "20-49 plays", "5-19 plays", "under 5 plays")
+
+private fun demoPlayBand(plays: Int) = when {
+    plays >= 50 -> DemoPlayBands[0]
+    plays >= 20 -> DemoPlayBands[1]
+    plays >= 5 -> DemoPlayBands[2]
+    else -> DemoPlayBands[3]
+}
+
 @Composable
 fun LongListScreen(onOpen: (Nav.Song) -> Unit) {
     val colors = MetroTheme.colors
@@ -107,6 +132,33 @@ fun LongListScreen(onOpen: (Nav.Song) -> Unit) {
     // tiles it becomes a second competing block of accent — hence the switch.
     var filled by remember { mutableStateOf(true) }
     var tiles by remember { mutableStateOf(false) }
+
+    // Three arrangements of the same list. Each one says how to order the rows AND what the header
+    // above a run of them reads, which is why sorting by a number the user cannot see still tells
+    // them where they are.
+    var sortIndex by remember { mutableIntStateOf(0) }
+    val sorts = remember {
+        listOf(
+            MetroListSort.alphabetical<String>("name") { it },
+            MetroListSort(
+                name = "plays",
+                comparator = compareByDescending<String> { demoPlays(it) },
+                header = { demoPlayBand(demoPlays(it)) },
+                // A closed domain: the four bands exist whether or not this list has any rows in
+                // them, so the zoom-out offers all four and dims the empty ones — the way the
+                // alphabet dims a letter you have nobody under.
+                jumpDomain = { _ -> DemoPlayBands }
+            ),
+            MetroListSort(
+                name = "date added",
+                comparator = compareBy<String> { demoMonthIndex(it) },
+                header = { DemoMonths[demoMonthIndex(it)] }
+                // No domain, deliberately: there is no set of all months, only the ones something
+                // was actually added in, so the zoom-out shows the months present and scrolls.
+            )
+        )
+    }
+    val sort = sorts[sortIndex]
 
     Column(Modifier.fillMaxSize().pageBackground().padding(top = 52.dp)) {
         Text(
@@ -139,13 +191,21 @@ fun LongListScreen(onOpen: (Nav.Song) -> Unit) {
             Spacer(Modifier.width(12.dp))
             Text("tile rows", color = colors.fg, fontFamily = MetroRegular, fontSize = 16.sp)
         }
+        Text(
+            "arranged by ${sort.name} — tap a heading to zoom out over the groups, hold one to " +
+                "arrange the list another way",
+            color = colors.dim, fontFamily = MetroRegular, fontSize = 13.sp,
+            modifier = Modifier.padding(start = 24.dp, end = 24.dp, bottom = 10.dp)
+        )
         // 40 artists over Latin and Cyrillic — the jump grid shows both alphabets and switches to
         // seven narrower tiles so sixty letters still fit.
         MetroLongList(
             items = DemoArtists,
             key = { it },
-            group = { metroGroupChar(it) },
+            sort = sort,
             filledGroupHeaders = filled,
+            sorts = sorts,
+            onSortSelected = { sortIndex = it },
             modifier = Modifier.weight(1f)
         ) { artist ->
             if (tiles) {
@@ -158,7 +218,14 @@ fun LongListScreen(onOpen: (Nav.Song) -> Unit) {
                     )
                 }
             } else {
-                ListRow(artist, onClick = { onOpen(Nav.Song(artist, "artist")) })
+                // The row carries whatever the arrangement is about, so ordering by a number is
+                // legible rather than mysterious. Under "name" there is nothing to add.
+                val secondary = when (sortIndex) {
+                    1 -> "${demoPlays(artist)} plays"
+                    2 -> DemoMonths[demoMonthIndex(artist)]
+                    else -> null
+                }
+                ListRow(artist, secondary, onClick = { onOpen(Nav.Song(artist, "artist")) })
             }
         }
     }

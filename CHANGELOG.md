@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.0.1 (not published — mavenLocal only)
+## 1.0.1
 
 **A long list can be arranged by anything, not only by its initial letter.** `MetroListSort` is that
 arrangement as data — a name, a comparator, and what the header above each run of rows says — so a
@@ -82,6 +82,16 @@ where you were. The labels stay fully opaque — the paper is translucent, the i
 **And its sheet is as wide as its widest label, never narrower than the anchor.** A row keeps the
 full-width sheet it always had; something small — a 44dp letter tile — gets a menu you can read
 instead of a column of broken words.
+
+`:sample`'s collection screen now offers three arrangements of the same forty artists — by name, by
+plays and by date added — because a heading a list can be arranged by is worth showing rather than
+describing: the letters, a closed set of four bands with the empty ones dimmed, and an open-ended
+column of months that scrolls. The numbers behind the last two are derived from the names; there is no
+library behind the sample.
+
+Published to **Maven Central** as `io.github.diffechento:metro:1.0.1`, with sources and javadoc jars
+and detached PGP signatures. 1.0.0 keeps working: every addition here is a new parameter with a
+default or a new declaration, so a call written against 1.0.0 compiles unchanged.
 
 ## 1.0.0
 
