@@ -101,7 +101,7 @@ On [Maven Central](https://central.sonatype.com/artifact/io.github.diffechento/m
 `mavenCentral()` is already in a default Android project, so this is the whole of it:
 
 ```kotlin
-implementation("io.github.diffechento:metro:1.0.0")
+implementation("io.github.diffechento:metro:1.0.1")
 ```
 
 Compose is exposed as `api`, so you do not re-declare the stack: the BOM, `foundation`,
@@ -120,7 +120,7 @@ local Maven repo and put `mavenLocal()` first in
 `dependencyResolutionManagement.repositories`:
 
 ```
-./gradlew :metro:publishToMavenLocal      # -> io.github.diffechento:metro:1.0.0
+./gradlew :metro:publishToMavenLocal      # -> io.github.diffechento:metro:1.0.1
 ```
 
 Republish after every change — a fixed version has no snapshot magic, so a change is invisible to
