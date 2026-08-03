@@ -15,11 +15,27 @@ bounces and the WP8 character is unchanged. The visible difference is confined t
 frames — which are the ones that were wrong.
 
 - `MetroSettleSpring` and `MetroSnapSpring` are the vocabulary, with `metroSettleSpring(threshold)`
-  for anything measured in 0f..1f rather than in pixels. `visibilityThreshold` is half a pixel on the
-  pixel-valued ones: the default (0.01) is for fractions and leaves a spring creeping invisibly for
-  hundreds of milliseconds, during which a pager still calls itself scrolling.
+  for anything measured in 0f..1f rather than in pixels. `visibilityThreshold` is a pixel or half of
+  one on all of them: the runtime default (0.01) is for fractions and leaves a spring creeping
+  invisibly for hundreds of milliseconds, during which a scrolling surface still calls itself
+  scrolling — see the next entry for what that costs.
 - The panorama's snap was the worst of it — a deliberately brisk decay brought a flick almost to a
   halt and 420ms of `tween` then took the remainder from rest, so a thrown section arrived twice.
+
+**A pager that is still animating takes the next gesture whichever way it goes**, so the invisible
+tail of a snap is not cosmetic. While `isScrollInProgress` is true, Compose skips the touch slop for
+that surface — `shouldAwaitTouchSlop = { !startDragImmediately() }`, deliberately, so a moving list
+can be caught — and the slop is the *only* place the orientation lock arbitrates direction. The
+panorama therefore swallowed vertical drags for as long as its snap ran.
+
+Measured on a Pixel 7, a 120ms flick with the runtime default threshold: the pager reported itself
+scrolling for **780ms**, roughly half of it after the panorama had visibly stopped, and a vertical
+flick landing in that window dragged it **0.50 of a section sideways and changed section** while the
+list under the finger did not move. The same gesture 800ms later moved the panorama by exactly zero.
+`MetroSnapSpring` now carries the pixel threshold `PagerDefaults.flingBehavior` puts on its own
+default snap; the window is 520ms, of which the finger owns 120, and it now ends when the movement
+stops being visible rather than hundreds of milliseconds later. What remains is catching a panorama
+that is genuinely still gliding, which is the behaviour that was asked for.
 - A **committed** swipe leaves on a linear tween whose length is derived from the finger's own speed,
   because linear is the only easing whose first frame can be made to match the hand exactly, and
   because content leaving the screen should hold its speed rather than decelerate at the edge.

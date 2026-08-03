@@ -83,13 +83,25 @@ fun metroSettleSpring(visibilityThreshold: Float): SpringSpec<Float> = spring(
  *
  * Slacker than [MetroSettleSpring] because it is answering a throw rather than putting something
  * back: the travel is a whole page and the eye is following the content, so arriving a little more
- * gently reads as the panorama coming to rest where it was thrown rather than being caught. Left on
- * the default `visibilityThreshold`: a pager's snap is not necessarily expressed in pixels, and this
- * is the one place where guessing the unit wrong would matter.
+ * gently reads as the panorama coming to rest where it was thrown rather than being caught.
+ *
+ * **The `visibilityThreshold` is the load-bearing number here, and its unit is a pixel** — the same
+ * one `PagerDefaults.flingBehavior` puts on its own default snap (`Int.VisibilityThreshold`, next to
+ * the same `StiffnessMediumLow` this uses). A pager's snap animates the offset in *pixels*, so the
+ * runtime default of 0.01 leaves the spring creeping for hundreds of milliseconds after the movement
+ * has stopped being visible — and a pager that is still animating is a pager that still calls itself
+ * scrolling. That is not cosmetic. While `isScrollInProgress` is true, Compose skips the touch slop
+ * for that surface (`shouldAwaitTouchSlop = { !startDragImmediately() }`, so a moving list can be
+ * caught), and the slop is the *only* place the orientation lock arbitrates direction — so the
+ * surface takes the next gesture whichever way it goes. Measured on a Pixel 7: with the default
+ * threshold a 120ms flick left the panorama "scrolling" for 780ms, and a vertical flick landing
+ * inside that window dragged it half a section sideways and changed section instead of scrolling the
+ * list under the finger; the same gesture 800ms later moved it by exactly zero.
  */
 val MetroSnapSpring: SpringSpec<Float> = spring(
     dampingRatio = Spring.DampingRatioNoBouncy,
-    stiffness = 400f
+    stiffness = 400f,
+    visibilityThreshold = 1f
 )
 
 /**
