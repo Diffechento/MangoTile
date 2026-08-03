@@ -77,8 +77,6 @@ private const val BackgroundMaxShift = 0.18f
  */
 private const val CommitVelocity = 220f
 
-/** How long the settle takes once the finger is off. */
-private const val SettleMillis = 420
 
 /** How dim the header of a section you are not on is drawn. */
 private const val AwayHeaderAlpha = 0.42f
@@ -208,11 +206,16 @@ private class SnapToSections(
         }.coerceIn(0f, scroll.maxValue.toFloat())
 
         var placed = from
+        // A spring, and handed the fling's own velocity, because that is the only way the settle
+        // continues the throw: `animate` accepts an initial velocity and a `tween` ignores it, so a
+        // duration-based settle always restarts the movement from whatever slope its easing begins
+        // on. Critically damped, so this is still an ease-out with no bounce in it — the difference
+        // is only in the first few frames, which are the ones the hand is still judging.
         animate(
             initialValue = from,
             targetValue = target,
             initialVelocity = initialVelocity,
-            animationSpec = tween(SettleMillis, easing = LinearOutSlowInEasing)
+            animationSpec = MetroSettleSpring
         ) { value, _ ->
             placed += scrollBy(value - placed)
         }
@@ -686,7 +689,13 @@ fun MetroPanorama(
                     // actually threw it. The default coasts, which on a page-snapping surface turns
                     // a small movement into a committed change of section.
                     decayAnimationSpec = exponentialDecay(frictionMultiplier = 2.5f),
-                    snapAnimationSpec = tween(SettleMillis, easing = LinearOutSlowInEasing),
+                    // The snap that finishes what the decay started, on a spring rather than on
+                    // 420ms of `tween`. The pair was the panorama's worst moment: a brisk decay
+                    // (deliberately brisk — see above) brought a flick almost to a halt, and the
+                    // tween then took the remainder from rest over four hundred milliseconds, so a
+                    // thrown section arrived twice, slowly. A spring picks up whatever speed the
+                    // decay left and puts the page down in one movement.
+                    snapAnimationSpec = MetroSnapSpring,
                     // Half a page, which is the deliberate reading: a section changes when you have
                     // dragged most of the way there. This was 0.3 for a while on the theory that a
                     // short flick should still commit, and the result was a panorama that changed

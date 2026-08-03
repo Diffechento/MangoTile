@@ -1,7 +1,6 @@
 package com.metrocompose
 
 import androidx.compose.animation.core.animate
-import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
@@ -66,11 +65,20 @@ class MetroCollapse internal constructor() {
         return taken
     }
 
-    internal suspend fun settle(open: Boolean) {
+    /**
+     * Puts the header the rest of the way home, continuing the throw that got it there.
+     *
+     * [velocity] is the *header's* own, not the list's: the two have opposite signs, since a list
+     * moving down is a header coming back. A settle that started from rest instead — which a `tween`
+     * forces, because it cannot read an initial velocity — is a small stall at exactly the moment the
+     * finger leaves, and it is felt on the one gesture that happens most.
+     */
+    internal suspend fun settle(open: Boolean, velocity: Float = 0f) {
         val from = offsetPx
         val to = if (open) 0f else maxPx
         if (from == to) return
-        animate(from, to, animationSpec = tween(SettleMillis)) { value, _ -> offsetPx = value }
+        animate(from, to, velocity, MetroSettleSpring) { value, _ -> offsetPx = value }
+        offsetPx = to
     }
 
     internal val connection: NestedScrollConnection = object : NestedScrollConnection {
@@ -90,15 +98,11 @@ class MetroCollapse internal constructor() {
         // back to its start brings the header with it instead of stopping a hair short of it.
         override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
             if (available.y > 0f && offsetPx > 0f) {
-                settle(open = true)
+                settle(open = true, velocity = -available.y)
                 return available
             }
             return Velocity.Zero
         }
-    }
-
-    private companion object {
-        const val SettleMillis = 220
     }
 }
 

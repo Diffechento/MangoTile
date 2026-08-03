@@ -4,7 +4,10 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.FastOutLinearInEasing
 import androidx.compose.animation.core.LinearOutSlowInEasing
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.SpringSpec
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.PressInteraction
@@ -32,6 +35,62 @@ import kotlinx.coroutines.delay
  * out leftward, which is how the phone swaps a cover.
  */
 enum class MetroGrowEdge { Start, End, Top, Bottom }
+
+/**
+ * The curve anything that was moving under a finger comes to rest on, and the one thing in this file
+ * that is a spring rather than a duration.
+ *
+ * **A `tween` cannot continue a gesture.** `animate(from, to, initialVelocity, tween(…))` accepts a
+ * velocity and ignores it — only springs and decays read it — so at the moment the finger leaves the
+ * glass the content's speed jumps from whatever the hand was doing to the easing curve's own starting
+ * slope. That discontinuity is what a hand reads as *rough*: not slow, not broken, just not the same
+ * movement any more. Every settle that follows a drag in this framework therefore ends on a spring,
+ * and every one of them is handed the velocity the finger left behind.
+ *
+ * It is **critically damped** ([Spring.DampingRatioNoBouncy]), which is the part that keeps the WP8
+ * character: a spring that cannot overshoot *is* an ease-out, so nothing bounces, nothing wobbles, and
+ * the only thing gained over the tween it replaces is that the first frame continues the hand's
+ * motion instead of contradicting it.
+ *
+ * The stiffness is chosen so the movement reads as about a quarter of a second — a critically damped
+ * spring covers most of its distance in roughly `4/sqrt(stiffness)` seconds, and, usefully, takes the
+ * same time whatever the distance is, so one number serves a 40px nudge and a full page.
+ *
+ * `visibilityThreshold` is half a pixel because these animate **pixels**. The default (0.01) is for
+ * fractions and leaves a spring creeping imperceptibly for hundreds of extra milliseconds — during
+ * which a pager still calls itself scrolling and a list still refuses to settle. For an animation in
+ * 0f..1f use [metroSettleSpring] with a threshold scaled to what the fraction is worth.
+ */
+val MetroSettleSpring: SpringSpec<Float> = spring(
+    dampingRatio = Spring.DampingRatioNoBouncy,
+    stiffness = 520f,
+    visibilityThreshold = 0.5f
+)
+
+/**
+ * [MetroSettleSpring] for something measured in 0f..1f rather than in pixels: pass what one pixel is
+ * worth as a fraction (`0.5f / travelPx`) so the tail is cut where it stops being visible rather than
+ * at an arbitrary number.
+ */
+fun metroSettleSpring(visibilityThreshold: Float): SpringSpec<Float> = spring(
+    dampingRatio = Spring.DampingRatioNoBouncy,
+    stiffness = 520f,
+    visibilityThreshold = visibilityThreshold.coerceAtLeast(1e-4f)
+)
+
+/**
+ * The softer spring a page-snapping surface settles on — a panorama letting go of a section.
+ *
+ * Slacker than [MetroSettleSpring] because it is answering a throw rather than putting something
+ * back: the travel is a whole page and the eye is following the content, so arriving a little more
+ * gently reads as the panorama coming to rest where it was thrown rather than being caught. Left on
+ * the default `visibilityThreshold`: a pager's snap is not necessarily expressed in pixels, and this
+ * is the one place where guessing the unit wrong would matter.
+ */
+val MetroSnapSpring: SpringSpec<Float> = spring(
+    dampingRatio = Spring.DampingRatioNoBouncy,
+    stiffness = 400f
+)
 
 /**
  * How long [Modifier.metroSlideIn] travels by default.
