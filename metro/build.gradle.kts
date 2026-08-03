@@ -11,10 +11,12 @@ plugins {
 // alternative. The Kotlin package stays `com.metrocompose`: a groupId and a package name are
 // different things, so no source changes and no import churn for consumers.
 group = "io.github.diffechento"
-// 1.0.1 is not on Central yet — it exists in mavenLocal only, on the owner's decision. A number of
-// its own rather than a second 1.0.0: two different jars under one coordinate build here and fail
-// everywhere else, and the failure is a compile error in a consumer that never asked for it.
-version = "1.0.1"
+// 1.0.2 is *not* on Central: it exists in mavenLocal only, which is the number a consumer's branch
+// points at while the gesture work is tried on a device. A number of its own rather than a second
+// 1.0.1: two different jars under one coordinate build here and fail everywhere else, and the failure
+// is a compile error in a consumer that never asked for it. Central first, then the consumer's push —
+// a tag over there resolves from Central, and would otherwise be built against a jar nobody has.
+version = "1.0.2"
 
 android {
     namespace = "com.metrocompose"

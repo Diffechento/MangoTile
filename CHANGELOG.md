@@ -1,5 +1,63 @@
 # Changelog
 
+## 1.0.2
+
+**Gestures continue instead of restarting.** The one defect behind all of this: `animate(from, to,
+initialVelocity, spec)` accepts a velocity and a `tween` *ignores* it — only springs and decays read
+it — so every settle in the framework threw away the finger's speed at the moment the finger lifted
+and began again on its easing curve's own starting slope. A discontinuity in speed at exactly the
+instant the hand is judging the result is what gets reported as motion feeling rough, and it was in
+the swipe, the dismiss, the collapsing header and the panorama's snap alike.
+
+Everything that follows a drag now ends on `MetroSettleSpring`, handed the velocity the gesture left
+behind, and it is **critically damped**: a spring that cannot overshoot is an ease-out, so nothing
+bounces and the WP8 character is unchanged. The visible difference is confined to the first few
+frames — which are the ones that were wrong.
+
+- `MetroSettleSpring` and `MetroSnapSpring` are the vocabulary, with `metroSettleSpring(threshold)`
+  for anything measured in 0f..1f rather than in pixels. `visibilityThreshold` is half a pixel on the
+  pixel-valued ones: the default (0.01) is for fractions and leaves a spring creeping invisibly for
+  hundreds of milliseconds, during which a pager still calls itself scrolling.
+- The panorama's snap was the worst of it — a deliberately brisk decay brought a flick almost to a
+  halt and 420ms of `tween` then took the remainder from rest, so a thrown section arrived twice.
+- A **committed** swipe leaves on a linear tween whose length is derived from the finger's own speed,
+  because linear is the only easing whose first frame can be made to match the hand exactly, and
+  because content leaving the screen should hold its speed rather than decelerate at the edge.
+
+**One detector for both axes** — `Modifier.metroDrag(swipe, dismiss)`. Stacking `metroSwipe` and
+`metroDismissDown` on one element does not work as well as it reads: each waits for the touch slop in
+its own direction and neither knows the other is there, so a drag 30° off the horizontal crosses both
+thresholds and the element goes sideways and downward at once — or the first detector to claim the
+pointer wins and the gesture that fires is not the one that was made. On a player, where sideways is
+"next track" and downward is "put this away", that is the whole gesture surface behaving
+unpredictably at the angles a thumb actually produces. The axis is now locked once, to whichever
+component was larger when the slop was crossed, and every later frame goes to that axis alone. An
+axis with nothing to drive is left unconsumed, so a list underneath still scrolls; anything a child
+consumes first ends the gesture at once.
+
+**A rising page a finger can hold anywhere** — `MetroRisingPageState`, `rememberMetroRisingPage`,
+`Modifier.metroRiseDrag`, and a `MetroRisingPage` overload that takes the state. With a boolean, the
+pull and the rise are two different movements: the strip is nudged under the thumb, a threshold
+decides, and a canned animation then plays from wherever the page happens to be. The hand feels one
+thing and the eye then watches another. Here the pull *is* the rise — `progress` is the page's
+position and the drag writes it directly — and letting go only finishes a movement already underway,
+from the speed the hand had. The app's own boolean stays the truth for taps, Back and widgets; the
+drag reports back through `onOpenChange`. The boolean overload is untouched.
+
+**Content follows the finger, and resists where resistance is an answer.**
+
+- A swipe tracks the hand exactly and gives progressively less as it approaches what it may travel.
+  `canGoNext`/`canGoPrevious` say what is reachable and are asked *while the finger is down*: the end
+  of a queue answers a swipe by barely moving, instead of a full flight out of the frame and a track
+  that never changes. They are asked again before a commit, so a hard flick at the end of the queue is
+  not a track change either.
+- `MetroDismissState` followed the finger at a flat half speed for its whole travel, on the reasoning
+  that a page tracking the finger exactly promises a dismissal it might not perform. True of the end
+  of the gesture and wrong at the start, where halving everything reads as dragging through treacle.
+  It is one-to-one as far as the decision is still open and resists past that, so the threshold is
+  told to the hand by feel. `followFraction` now defaults to 1f, and `maxTravelFraction` is where the
+  resistance asymptotes.
+
 ## 1.0.1
 
 **A long list can be arranged by anything, not only by its initial letter.** `MetroListSort` is that

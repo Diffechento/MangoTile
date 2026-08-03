@@ -5,6 +5,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.ContentTransform
 import androidx.compose.animation.core.FastOutLinearInEasing
 import androidx.compose.animation.core.LinearOutSlowInEasing
+import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -18,16 +19,37 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.Stable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.composed
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.isSpecified
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 
 /**
  * WP8-flavored "turnstile" page transition for AnimatedContent: the incoming page
@@ -74,12 +96,19 @@ const val MetroBarRiseMillis = 320
  * showing underneath.
  *
  *   MetroBottomBar(visible = playing && current != NowPlaying) { MiniPlayer(...) }
+ *
+ * [background] paints the bar's whole surface, **including the strip under the navigation bar** that
+ * the content is kept clear of. That is the point of it being here rather than in the caller's own
+ * content: a bar whose content draws its own picture leaves the inset flat, and the seam between the
+ * two is a band of bare colour along the bottom edge of the screen. It is drawn in a box already
+ * given `matchParentSize`, as [MetroPanorama]'s backdrop is, so the lambda only has to fill it.
  */
 @Composable
 fun MetroBottomBar(
     visible: Boolean,
     modifier: Modifier = Modifier,
     durationMillis: Int = MetroBarRiseMillis,
+    background: (@Composable BoxScope.() -> Unit)? = null,
     content: @Composable () -> Unit
 ) {
     AnimatedVisibility(
@@ -90,13 +119,20 @@ fun MetroBottomBar(
         exit = shrinkVertically(tween(durationMillis), shrinkTowards = Alignment.Bottom) +
             fadeOut(tween(durationMillis / 2))
     ) {
-        // `navigationBarsPadding` consumes the inset, so a caller that pads again gets no gap twice.
-        Box(
-            Modifier
-                .background(MetroTheme.colors.bg)
-                .navigationBarsPadding()
-        ) {
-            content()
+        // The flat colour stays underneath whatever [background] draws, so a picture that has not
+        // loaded yet — or one with any transparency in it — still has something opaque behind it.
+        Box(Modifier.background(MetroTheme.colors.bg)) {
+            if (background != null) {
+                // Clipped, because the useful thing to draw here is a *piece* of something bigger —
+                // the top of a picture the page above will show all of — and that is expressed by
+                // overflowing this box with `requiredHeight` and letting it be cut off here.
+                Box(Modifier.matchParentSize().clipToBounds(), content = background)
+            }
+            // `navigationBarsPadding` consumes the inset, so a caller that pads again gets no gap
+            // twice. It is on the content alone: the surface above reaches the bottom of the screen.
+            Box(Modifier.navigationBarsPadding()) {
+                content()
+            }
         }
     }
 }
@@ -151,4 +187,315 @@ fun MetroRisingPage(
     ) {
         content()
     }
+}
+
+/**
+ * The same page as [MetroRisingPage] above, except that a finger can hold it anywhere between the
+ * strip and the screen.
+ *
+ * **Why this exists.** With a boolean, a pull on the strip and the page's rise are two different
+ * movements: the strip is nudged a little way under the thumb, a threshold decides, and then a
+ * canned 320ms animation plays from wherever the page happens to be. The hand feels one thing, the
+ * eye then watches another, and the join between them is exactly what gets reported as a gesture
+ * that is not smooth. Here the pull *is* the rise — [progress] is the page's position and the finger
+ * writes it directly — and letting go only finishes a movement that is already underway, from the
+ * speed the hand was going at.
+ *
+ * Everything else about the component is unchanged: it is an overlay rather than a destination,
+ * nothing underneath is torn down, and the page is full-bleed so a backdrop reaches the bottom edge
+ * of the screen.
+ *
+ * Drive it with [Modifier.metroRiseDrag] on both ends of the gesture — the strip it comes out of and
+ * the page itself — and keep the app's own boolean, which taps, Back and a widget still set:
+ *
+ *     val rising = rememberMetroRisingPage(playerOpen, MiniPlayerHeight) { playerOpen = it }
+ *     MetroRisingPage(rising) { NowPlayingScreen(Modifier.metroRiseDrag(rising)) }
+ *     MiniPlayer(Modifier.metroRiseDrag(rising))
+ */
+@Stable
+class MetroRisingPageState internal constructor(
+    private val scope: CoroutineScope,
+    private val onOpenChange: (Boolean) -> Unit,
+    private val commitFraction: Float,
+    private val flickVelocity: Float,
+    initiallyOpen: Boolean
+) {
+
+    /**
+     * Where the page is: 0f resting in the strip, 1f covering the screen.
+     *
+     * Read it in a `graphicsLayer` and not in composition — a drag writes it every frame.
+     */
+    var progress: Float by mutableFloatStateOf(if (initiallyOpen) 1f else 0f)
+        private set
+
+    /**
+     * Whether the page needs to exist at all, which is *not* [progress] compared against zero: this
+     * is a plain boolean that changes twice per open-and-close, so composing the page reads a flag
+     * rather than a value that moves every frame.
+     */
+    var present: Boolean by mutableStateOf(initiallyOpen)
+        private set
+
+    /** Where it is heading. Also what an external request is compared against, to avoid restarting. */
+    private var target: Float = if (initiallyOpen) 1f else 0f
+
+    /** Distance between the two states in px, measured by the page and guessed before it exists. */
+    internal var travelPx: Float = 0f
+
+    /** How much of the page shows while it rests in the strip: the strip's height plus its inset. */
+    internal var restingPx: Float = 0f
+
+    /**
+     * How tall the page is, in px — which is what the **strip** needs if it wants to draw the same
+     * picture the page does.
+     *
+     * At rest the page is not composed at all, so whatever the strip paints is what the eye is
+     * looking at; the instant a drag begins, the page appears over exactly that rectangle. If the two
+     * do not agree the picture jumps at the start of every gesture — a cover cropped into a short wide
+     * band and the same cover cropped into a whole screen are at completely different magnifications,
+     * and that step is precisely what the rise was supposed not to have. Draw the strip's copy in a
+     * box this tall, aligned to the strip's *top*, and the two are the same drawing.
+     */
+    val pageHeightPx: Float get() = travelPx + restingPx
+
+    /**
+     * How far down the page is being held right now, in px: 0 when it covers the screen, the whole
+     * travel when it rests in the strip.
+     *
+     * Public because a layer *inside* the page may need to undo it. A backdrop is the case this exists
+     * for: drawn as part of the page it travels with the page, so the picture slides upward as the page
+     * rises and every part of the screen shows a different piece of it on the way — which is read, quite
+     * reasonably, as the picture changing rather than being uncovered. Undo this on that layer and the
+     * picture stands still in screen coordinates while the page becomes a widening window onto it.
+     */
+    val offsetPx: Float get() = (1f - progress) * travelPx
+
+    /** Which end the gesture started from, so the same fraction can mean "open it" and "close it". */
+    private var grabbedOpen: Boolean = initiallyOpen
+
+    private var running: Job? = null
+
+    internal fun measured(pageHeight: Float) {
+        if (pageHeight > restingPx) travelPx = pageHeight - restingPx
+    }
+
+    private fun place(value: Float) {
+        progress = value
+        present = value > 0f
+    }
+
+    /** Cancels whatever is in flight and leaves the page where it stands, ready to be dragged on. */
+    internal fun grab() {
+        handedToFinger = true
+        running?.cancel()
+        running = null
+        grabbedOpen = target >= 1f
+    }
+
+    /**
+     * True while a finger is what stopped the animation, which is the one case where being left part
+     * way is correct. Anything *else* that kills it — a scope going away underneath, a composition
+     * being disposed — must not leave a page hanging in the middle of the screen with nothing in
+     * flight to finish it, so the end position is claimed on the way out instead.
+     */
+    private var handedToFinger: Boolean = false
+
+    internal fun drag(deltaY: Float) {
+        val travel = travelPx.coerceAtLeast(1f)
+        // Upward is negative in screen coordinates and opening in this one. Clamped rather than
+        // rubber-banded: past either end there is nothing to show, and a page that can be pulled
+        // above the top of the screen is a page with a gap under it.
+        place((progress - deltaY / travel).coerceIn(0f, 1f))
+    }
+
+    /**
+     * Decides which end the page is going to and starts it on its way, from the finger's own speed.
+     *
+     * The threshold is measured from wherever the gesture *started*, so one number means "a bit of
+     * the way open" from the strip and "a bit of the way closed" from the page — the asymmetry a pair
+     * of separate fractions used to encode, without the two of them being fractions of different
+     * things (a 75dp strip and a whole screen) and therefore incomparable.
+     */
+    internal fun settle(velocityY: Float) {
+        val upward = -velocityY
+        val open = when {
+            upward > flickVelocity -> true
+            upward < -flickVelocity -> false
+            grabbedOpen -> progress > 1f - commitFraction
+            else -> progress > commitFraction
+        }
+        // The app's boolean is set first, so Back, the strip and this all agree about what is open
+        // while the movement finishes.
+        onOpenChange(open)
+        animateTo(open, velocityY)
+    }
+
+    /**
+     * Fire-and-forget, so it can be called from a pointer loop as well as from composition.
+     *
+     * Two different things have to be dropped here, and telling them apart is the whole of it:
+     *
+     *  - **An echo of a movement already under way.** [settle] sets the app's boolean before it
+     *    animates, so the caller's `LaunchedEffect(open)` asks for the same end a frame later. Acting
+     *    on that would cancel the running animation and restart it from rest, throwing away the very
+     *    velocity this was all for.
+     *  - **A request to go where it already is.** Nothing to do.
+     *
+     * What must *not* be dropped is the third case, which is the one a plain `target == to` guard got
+     * wrong: a drag released **without committing** ends where it began, so `target` is unchanged
+     * while `progress` is somewhere in the middle and nothing is animating. Dropping that leaves the
+     * page hanging half way up the screen for ever, with no gesture in flight to bring it home — the
+     * exact symptom of letting go of the strip a little too early.
+     */
+    internal fun animateTo(open: Boolean, velocityY: Float = 0f) {
+        val to = if (open) 1f else 0f
+        if (target == to && (running?.isActive == true || progress == to)) return
+        target = to
+        handedToFinger = false
+        running?.cancel()
+        running = scope.launch {
+            try {
+                val travel = travelPx.coerceAtLeast(1f)
+                // Progress is a fraction, so the finger's px/s becomes fractions/s, and the spring is
+                // told what one pixel is worth so its tail is cut where it stops being visible.
+                animate(progress, to, -velocityY / travel, metroSettleSpring(0.5f / travel)) { value, _ ->
+                    place(value)
+                }
+            } finally {
+                // Reached, cancelled or thrown, the page ends up somewhere it can be: a coroutine
+                // scope belongs to a composition and compositions go away — while the insets settle
+                // at startup, when a parent is disposed — and an animation killed halfway would
+                // otherwise leave the page stopped in the middle of the screen with no gesture in
+                // flight to bring it home. A finger is the one thing allowed to stop it there,
+                // because a finger is going to decide.
+                if (!handedToFinger) place(to)
+            }
+        }
+    }
+}
+
+/**
+ * Remembers the state for a [MetroRisingPage] a finger can hold anywhere.
+ *
+ * [open] is the app's own truth — set by a tap, by Back, by a widget — and the page follows it. A
+ * drag reports the other way, through [onOpenChange], so the two never disagree about what is open.
+ *
+ * [fromHeight] is the strip's *content* height, as with the boolean overload; the navigation bar
+ * under it is added here.
+ *
+ * **Pass [windowHeight] if anything reads [MetroRisingPageState.pageHeightPx].** Without it the page's
+ * height is guessed from the configuration until the page has been composed once and can measure
+ * itself, and that guess is wrong by the system bars: `screenHeightDp` is the space an app is given,
+ * while the page — full-bleed, by design — is as tall as the window. Being 8% out costs almost nothing
+ * on the drag itself, and everything to a strip trying to draw the top of the same picture. The caller
+ * knows the number exactly: put a `BoxWithConstraints` where the page will go and hand over its
+ * `maxHeight`.
+ */
+@Composable
+fun rememberMetroRisingPage(
+    open: Boolean,
+    fromHeight: Dp,
+    commitFraction: Float = 0.15f,
+    flickVelocity: Float = 500f,
+    windowHeight: Dp = Dp.Unspecified,
+    onOpenChange: (Boolean) -> Unit
+): MetroRisingPageState {
+    val scope = rememberCoroutineScope()
+    val changed by rememberUpdatedState(onOpenChange)
+    val state = remember(commitFraction, flickVelocity) {
+        MetroRisingPageState(
+            scope = scope,
+            onOpenChange = { changed(it) },
+            commitFraction = commitFraction,
+            flickVelocity = flickVelocity,
+            initiallyOpen = open
+        )
+    }
+
+    val density = LocalDensity.current
+    val barInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    state.restingPx = with(density) { (fromHeight + barInset).toPx() }
+    if (windowHeight.isSpecified) {
+        // Told, not guessed, and re-read every composition so a rotation or a resize is simply the
+        // next value. `isSpecified` and not `!= Dp.Unspecified`: that constant is a NaN, and NaN is
+        // not equal to itself, so the obvious comparison is true even when nothing was passed.
+        state.travelPx = (with(density) { windowHeight.toPx() } - state.restingPx).coerceAtLeast(1f)
+    } else if (state.travelPx <= 0f) {
+        // A bootstrap travel, because the first drag happens on the strip — before the page exists
+        // and can measure itself. Wrong by the system bars (see the note above), which one gesture's
+        // worth of arithmetic can live with; the page corrects it the moment it composes, and nothing
+        // jumps when it does because what is stored is the position, not the pixels it came from.
+        val screen = with(density) { LocalConfiguration.current.screenHeightDp.dp.toPx() }
+        state.travelPx = (screen - state.restingPx).coerceAtLeast(1f)
+    }
+
+    // Taps, Back and the widget. The first run is a no-op: the state was built already agreeing.
+    LaunchedEffect(open) { state.animateTo(open) }
+    return state
+}
+
+/**
+ * The page itself. Composed only while it is anywhere other than resting, so closing it really does
+ * remove it — and while it rests, the strip underneath is live again.
+ */
+@Composable
+fun MetroRisingPage(
+    state: MetroRisingPageState,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit
+) {
+    if (!state.present) return
+    Box(
+        modifier
+            .fillMaxSize()
+            .onSizeChanged { state.measured(it.height.toFloat()) }
+            .graphicsLayer {
+                // The one place [progress] is read: a drag invalidates this layer and nothing else.
+                translationY = state.offsetPx
+                // Clipped to the page, and clipped *here* rather than by a modifier of its own,
+                // because a layer's clip is applied before its transform: the content is cut to the
+                // page's own rectangle and the whole thing then travels. Without it, anything a page
+                // deliberately draws outside its bounds — a backdrop overscaled so panning never
+                // exposes an edge is the usual one — hangs above the page's top edge while it rises,
+                // as a band of tinted nothing over the library. It only shows part-way, which is why
+                // a page that could only be all the way open or all the way shut never revealed it.
+                clip = true
+            }
+    ) {
+        content()
+    }
+}
+
+/**
+ * Hands a vertical drag to a [MetroRisingPageState] — the pull that opens the page and the push that
+ * puts it back, which are the same gesture in the two directions and are therefore one modifier.
+ *
+ * Put it on the strip *and* on the page. [swipe] is the other axis, if the element has one: the
+ * player changes track sideways, and passing the swipe state here rather than adding
+ * [Modifier.metroSwipe] alongside is what stops a diagonal thumb doing both at once — see
+ * [Modifier.metroDrag] for why two one-axis detectors on one element cannot arbitrate.
+ */
+fun Modifier.metroRiseDrag(
+    state: MetroRisingPageState,
+    swipe: MetroSwipeState? = null,
+    enabled: Boolean = true,
+    swipeEnabled: Boolean = true
+): Modifier = composed {
+    val horizontal = swipe?.takeIf { swipeEnabled }
+    onSizeChanged { horizontal?.width = it.width }
+        .metroLockedDrag(
+            horizontal = horizontal?.let { s ->
+                MetroDragAxis(onDelta = { s.onDrag(it) }, onStop = { s.onDragStopped(it) })
+            },
+            vertical = if (enabled) {
+                MetroDragAxis(
+                    onGrab = { state.grab() },
+                    onDelta = { state.drag(it) },
+                    onStop = { state.settle(it) }
+                )
+            } else {
+                null
+            }
+        )
 }
