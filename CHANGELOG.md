@@ -44,6 +44,24 @@ position and the drag writes it directly — and letting go only finishes a move
 from the speed the hand had. The app's own boolean stays the truth for taps, Back and widgets; the
 drag reports back through `onOpenChange`. The boolean overload is untouched.
 
+**A page dragged between its neighbours** — `MetroPageSwipeState`, `rememberMetroPageSwipe`,
+`Modifier.metroPageSwipe`, and a `metroRiseDrag` overload that takes the pager so a player can be paged
+sideways and pushed away downward through one detector. `MetroSwipeState` moves a page under the finger
+and then either brings it home or throws it out and flies a replacement in; either way the change is a
+separate movement the hand is no longer part of. Here the neighbours are laid out beside the current
+page and everything travels together, so letting go finishes a movement already made and what arrives
+is what was visibly coming.
+
+**Pages are addressed by an index the caller owns, and that is the whole design.** State that a gesture
+commits to does not arrive in the same frame — a media session answers a skip a frame or several later —
+so anything that finishes the animation and *then* resets the offset shows one frame of the wrong page.
+Ask `offsetForSlot(-1/0/+1)` where to draw each page; the caller reports its index and the indices either
+side every composition, a committed gesture remembers the index it asked for *and* the direction, and
+when that index arrives the offset is given back exactly one slot in a `SideEffect` — before the frame is
+drawn. Slots rather than arithmetic on the index, because "the next page" is not always the index plus
+one: a queue on repeat answers the last track's next with the first one. There is a timeout for the page
+that never comes, so a refused skip cannot leave the pages sitting off-centre with nothing in flight.
+
 **Content follows the finger, and resists where resistance is an answer.**
 
 - A swipe tracks the hand exactly and gives progressively less as it approaches what it may travel.
