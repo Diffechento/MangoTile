@@ -11,15 +11,15 @@ plugins {
 // alternative. The Kotlin package stays `com.metrocompose`: a groupId and a package name are
 // different things, so no source changes and no import churn for consumers.
 group = "io.github.diffechento"
-// 1.0.2 is *not* on Central: it exists in mavenLocal only, which is the number a consumer's branch
-// points at while the gesture work is tried on a device. A number of its own rather than a second
-// 1.0.1: two different jars under one coordinate build here and fail everywhere else, and the failure
-// is a compile error in a consumer that never asked for it. Central first, then the consumer's push —
-// a tag over there resolves from Central, and would otherwise be built against a jar nobody has.
+// 1.0.2 is **on Central**, published 2026-08-05 — the gesture work and the queue work both went out
+// under it, the second on the owner's instruction rather than as a 1.0.3, which was safe only because
+// nothing had been published under the number yet.
 //
-// The queue work (a reorderable list, a page stacked over a rising page) is going into this same
-// unreleased 1.0.2 on the owner's instruction rather than into a 1.0.3: nothing has been published
-// under it, so there is no jar in the world for a second one to disagree with.
+// That is the whole of the rule for the next one: a version is a promise that one jar answers to that
+// coordinate for ever. While a number is unreleased it may be rebuilt as often as you like, and the
+// moment it is on Central it may not be touched again — the next framework change is a new version,
+// Central first and the consumer's push second, because a tag over there resolves from Central and
+// would otherwise be built against a jar nobody has.
 version = "1.0.2"
 
 android {
