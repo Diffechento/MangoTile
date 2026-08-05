@@ -78,6 +78,51 @@ drawn. Slots rather than arithmetic on the index, because "the next page" is not
 one: a queue on repeat answers the last track's next with the first one. There is a timeout for the page
 that never comes, so a refused skip cannot leave the pages sitting off-centre with nothing in flight.
 
+**A row of a long list is picked up by holding it** — `MetroReorderState`, `rememberMetroReorder`,
+`Modifier.metroReorderRow`. The hold lifts the row under the finger, dragging carries it a place at a
+time, and the list creeps when the row is held against either end. Let go without having moved it and
+`onHeldStill` fires, so the same press still opens the context menu a hold has always opened: one
+gesture, two outcomes, decided by whether the hand moved, and nothing drawn on screen to explain it.
+
+Three things in it are the whole of why it works, and each was a defect first:
+
+- **The detector is keyed on the state, never on the row's index.** The index is exactly what a
+  committed step changes, so keying on it tears the handler down mid-drag — and the coroutine that
+  would have put the row back down is cancelled with it, leaving the row lifted over its neighbours
+  with no finger holding it. `drop()` is in a `finally` for the same reason.
+- **The movement is read before the pointer is consumed.** `positionChange()` answers zero for a
+  change that is already consumed, which turns a whole drag into a row that lifts and then refuses to
+  move — with every event still arriving, so nothing in the log looks wrong.
+- **Events are taken on the `Initial` pass.** The row's own clickable is *inside* this node and the
+  Main pass asks the innermost node first, so it would see the release before this could consume it
+  and a row put down would also be a row tapped. Consuming on Initial also takes the drag off the
+  list, which would otherwise scroll under the finger.
+
+Displacement is one number, not two: a step gives a row's height back the moment it commits, because
+the caller's list has reordered and the row's own slot has moved by exactly that. Keeping a second
+running total and adding the two draws the row a row lower per step. Moves are committed *as they
+happen* rather than at the end, so the caller's order is the only one in play — which means a list
+behind an asynchronous player has to keep a local copy and send the command, rather than waiting to be
+told what it already knows.
+
+**A rising page can be stacked over another rising page** — `metroRiseDrag(state, pager, upward = …)`.
+An upward drag on a page that has nowhere left to rise is a request for the page above it (a queue over
+a player); while it is still on its way up, the same drag is that rise continuing. One detector decides,
+by the sign of the travel that crossed the slop, and the chosen page keeps every later frame of the
+gesture — so reversing mid-drag puts it back rather than handing the movement to its neighbour. An axis
+may now decline a gesture (`MetroDragAxis.onGrab` answers a Boolean), which leaves the pointer
+unconsumed exactly as a null axis does: a surface that is only half live must not swallow the direction
+it has nothing to do with.
+
+`fromHeight = 0.dp` is now the second, honest case for `rememberMetroRisingPage`: a page that comes out
+of the bottom edge of the screen rather than out of a strip has no strip's navigation inset to inherit,
+and adding it left a band of the page's own top showing along the bottom edge for the last frames of
+every drop.
+
+**Two more icons** — `MetroIcon.ChevronUp` and `ChevronDown`, for the mark that says there is a page
+above or below this one. Wide and shallow rather than at 45°: an arrow reads as a button that takes you
+somewhere, and this is the edge of something you can pull.
+
 **Content follows the finger, and resists where resistance is an answer.**
 
 - A swipe tracks the hand exactly and gives progressively less as it approaches what it may travel.

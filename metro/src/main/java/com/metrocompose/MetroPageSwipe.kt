@@ -281,33 +281,36 @@ fun rememberMetroPageSwipe(
  * The pair a player wants: sideways changes track, downward puts the page away, and a thumb 30 degrees
  * off the horizontal does exactly one of them. Stacking [metroPageSwipe] and [metroRiseDrag] instead
  * gives two independent detectors and both fire — see [Modifier.metroDrag] for why.
+ *
+ * [upward] is a *third* thing the same surface can do: a page stacked above this one — a queue over a
+ * player — which an upward drag opens once this page has nowhere further to rise. Handed to the same
+ * detector for the same reason the other two are.
  */
 fun Modifier.metroRiseDrag(
     state: MetroRisingPageState,
     pager: MetroPageSwipeState,
     enabled: Boolean = true,
-    swipeEnabled: Boolean = true
+    swipeEnabled: Boolean = true,
+    upward: MetroRisingPageState? = null,
+    upwardEnabled: Boolean = true
 ): Modifier = composed {
+    val target = remember { MetroRiseTarget() }
     onSizeChanged { pager.widthPx = it.width }
         .metroLockedDrag(
             horizontal = if (swipeEnabled) {
                 MetroDragAxis(
-                    onGrab = { pager.grab() },
+                    onGrab = { pager.grab(); true },
                     onDelta = { pager.drag(it) },
                     onStop = { pager.settle(it) }
                 )
             } else {
                 null
             },
-            vertical = if (enabled) {
-                MetroDragAxis(
-                    onGrab = { state.grab() },
-                    onDelta = { state.drag(it) },
-                    onStop = { state.settle(it) }
-                )
-            } else {
-                null
-            }
+            vertical = metroRiseAxis(
+                target = target,
+                down = state.takeIf { enabled },
+                up = upward?.takeIf { upwardEnabled }
+            )
         )
 }
 
@@ -316,7 +319,7 @@ fun Modifier.metroPageSwipe(state: MetroPageSwipeState, enabled: Boolean = true)
         .metroLockedDrag(
             horizontal = if (enabled) {
                 MetroDragAxis(
-                    onGrab = { state.grab() },
+                    onGrab = { state.grab(); true },
                     onDelta = { state.drag(it) },
                     onStop = { state.settle(it) }
                 )

@@ -16,6 +16,10 @@ group = "io.github.diffechento"
 // 1.0.1: two different jars under one coordinate build here and fail everywhere else, and the failure
 // is a compile error in a consumer that never asked for it. Central first, then the consumer's push —
 // a tag over there resolves from Central, and would otherwise be built against a jar nobody has.
+//
+// The queue work (a reorderable list, a page stacked over a rising page) is going into this same
+// unreleased 1.0.2 on the owner's instruction rather than into a 1.0.3: nothing has been published
+// under it, so there is no jar in the world for a second one to disagree with.
 version = "1.0.2"
 
 android {

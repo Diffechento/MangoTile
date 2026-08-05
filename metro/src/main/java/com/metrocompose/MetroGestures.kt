@@ -447,9 +447,17 @@ fun Modifier.metroDrag(
     )
 }
 
-/** One half of a two-axis gesture: what a frame of it does, and what letting go does. */
+/**
+ * One half of a two-axis gesture: what a frame of it does, and what letting go does.
+ *
+ * [onGrab] is handed the travel that crossed the slop — **signed**, so an axis that means two different
+ * things in its two directions can decide which of them this gesture is (a player pushed down goes
+ * away, pulled up shows its queue) — and answers whether it is taking the gesture at all. Answering
+ * false leaves the pointer unconsumed, exactly as a null axis does, so a surface underneath still gets
+ * it: an axis that is only half live must not swallow the direction it has nothing to do with.
+ */
 internal class MetroDragAxis(
-    val onGrab: () -> Unit = {},
+    val onGrab: (Float) -> Boolean = { true },
     val onDelta: (Float) -> Unit,
     val onStop: suspend (Float) -> Unit
 )
@@ -515,13 +523,16 @@ internal fun Modifier.metroLockedDrag(
                         if (abs(travelX) >= abs(travelY)) MetroAxis.Horizontal else MetroAxis.Vertical
                     val wanted =
                         if (locked == MetroAxis.Horizontal) across.value else down.value
-                    // Nothing here answers to that axis: leave the pointer alone so something else
-                    // can have it.
+                    // Nothing here answers to that axis — or nothing answers to the *direction* it
+                    // went in: leave the pointer alone so something else can have it.
                     if (wanted == null) return@awaitEachGesture
+                    val travel = if (locked == MetroAxis.Horizontal) travelX else travelY
+                    // The settle is cancelled only once the axis has agreed to take over: a gesture
+                    // that is declined must leave whatever is in flight to finish on its own.
+                    if (!wanted.onGrab(travel)) return@awaitEachGesture
+                    settle.job?.cancel()
                     axis = locked
                     chosen = wanted
-                    settle.job?.cancel()
-                    wanted.onGrab()
                     change.consume()
                     // The slop itself is not travel — the same as `draggable`, and the reason a drag
                     // does not begin with a jump of a finger's width.

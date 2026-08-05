@@ -34,7 +34,8 @@ import kotlin.math.sin
 enum class MetroIcon {
     Star, StarFilled, Shuffle, Repeat, RepeatOne,
     Previous, Play, Pause, Next,
-    Speaker, SpeakerMuted
+    Speaker, SpeakerMuted,
+    ChevronUp, ChevronDown
 }
 
 /**
@@ -62,8 +63,39 @@ fun MetroLineIcon(
             MetroIcon.Next -> drawSkip(color, forward = true)
             MetroIcon.Speaker -> drawSpeaker(color, stroke, muted = false)
             MetroIcon.SpeakerMuted -> drawSpeaker(color, stroke, muted = true)
+            MetroIcon.ChevronUp -> drawChevron(color, stroke, up = true)
+            MetroIcon.ChevronDown -> drawChevron(color, stroke, up = false)
         }
     }
+}
+
+/**
+ * The hint that there is a page above or below this one — two strokes, wide and shallow.
+ *
+ * Shallow on purpose: a caret at 45° reads as an arrow, which is a button that will take you
+ * somewhere; this is the edge of something you can pull, and the flatter angle is what says so. It is
+ * also the shape the phone's own "there is more" marks take.
+ */
+private fun DrawScope.drawChevron(color: Color, stroke: Float, up: Boolean) {
+    val s = size.minDimension
+    val left = (size.width - s) / 2f
+    val top = (size.height - s) / 2f
+    val halfWidth = s * 0.34f
+    val halfHeight = s * 0.13f
+    val cx = left + s / 2f
+    val cy = top + s / 2f
+    val tip = if (up) cy - halfHeight else cy + halfHeight
+    val tail = if (up) cy + halfHeight else cy - halfHeight
+    val path = Path().apply {
+        moveTo(cx - halfWidth, tail)
+        lineTo(cx, tip)
+        lineTo(cx + halfWidth, tail)
+    }
+    drawPath(
+        path = path,
+        color = color,
+        style = Stroke(width = stroke, cap = StrokeCap.Round, join = StrokeJoin.Round)
+    )
 }
 
 /**

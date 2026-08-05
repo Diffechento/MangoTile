@@ -382,7 +382,9 @@ class MetroRisingPageState internal constructor(
  * drag reports the other way, through [onOpenChange], so the two never disagree about what is open.
  *
  * [fromHeight] is the strip's *content* height, as with the boolean overload; the navigation bar
- * under it is added here.
+ * under it is added here. Zero is the other case — a page that rises out of the bottom edge of the
+ * screen rather than out of a strip, which is what a second page stacked over the first one does — and
+ * then nothing is added, because there is no strip whose inset to inherit.
  *
  * **Pass [windowHeight] if anything reads [MetroRisingPageState.pageHeightPx].** Without it the page's
  * height is guessed from the configuration until the page has been composed once and can measure
@@ -415,7 +417,13 @@ fun rememberMetroRisingPage(
 
     val density = LocalDensity.current
     val barInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-    state.restingPx = with(density) { (fromHeight + barInset).toPx() }
+    // A page that comes out of a strip shows that strip's height *and* the navigation bar the strip
+    // draws over. A page that comes out of the bottom edge of the screen instead — `fromHeight` of
+    // zero, which is what a second page stacked over the first one does — has no strip to inherit, and
+    // adding the inset there leaves a band of the page's own top showing along the bottom edge for the
+    // last frames of every drop, then vanishing when the page is finally removed.
+    state.restingPx =
+        if (fromHeight > 0.dp) with(density) { (fromHeight + barInset).toPx() } else 0f
     if (windowHeight.isSpecified) {
         // Told, not guessed, and re-read every composition so a rotation or a resize is simply the
         // next value. `isSpecified` and not `!= Dp.Unspecified`: that constant is a NaN, and NaN is
@@ -483,19 +491,49 @@ fun Modifier.metroRiseDrag(
     swipeEnabled: Boolean = true
 ): Modifier = composed {
     val horizontal = swipe?.takeIf { swipeEnabled }
+    val target = remember { MetroRiseTarget() }
     onSizeChanged { horizontal?.width = it.width }
         .metroLockedDrag(
             horizontal = horizontal?.let { s ->
                 MetroDragAxis(onDelta = { s.onDrag(it) }, onStop = { s.onDragStopped(it) })
             },
-            vertical = if (enabled) {
-                MetroDragAxis(
-                    onGrab = { state.grab() },
-                    onDelta = { state.drag(it) },
-                    onStop = { state.settle(it) }
-                )
-            } else {
-                null
-            }
+            vertical = metroRiseAxis(target, down = state.takeIf { enabled }, up = null)
         )
+}
+
+/** Which end of a vertical gesture is being served, held for the length of that gesture. */
+internal class MetroRiseTarget {
+    var state: MetroRisingPageState? = null
+}
+
+/**
+ * The vertical half of a rising page's gesture, which may be **two pages deep**.
+ *
+ * [down] is the page the element belongs to: dragging it towards the bottom of the screen puts it
+ * away, and dragging up is the same page still coming out. [up] is a page stacked *above* it — a queue
+ * over a player — and it takes the gesture only when there is nothing left of [down] to open, which is
+ * the whole of the rule: while the player is still on its way up, an upward drag is that rise
+ * continuing, and once it covers the screen the same drag is a request for what is over it. One
+ * detector, so a thumb cannot start both.
+ *
+ * The chosen page keeps every later frame of the gesture, whichever way the finger then goes: reversing
+ * mid-drag puts the page back rather than handing the movement to its neighbour half way through.
+ */
+internal fun metroRiseAxis(
+    target: MetroRiseTarget,
+    down: MetroRisingPageState?,
+    up: MetroRisingPageState?
+): MetroDragAxis? {
+    if (down == null && up == null) return null
+    return MetroDragAxis(
+        onGrab = { travel ->
+            val handOver = travel < 0f && up != null && (down == null || down.progress >= 1f)
+            val chosen = if (handOver) up else down
+            target.state = chosen
+            chosen?.grab()
+            chosen != null
+        },
+        onDelta = { delta -> target.state?.drag(delta) },
+        onStop = { velocity -> target.state?.settle(velocity) }
+    )
 }
