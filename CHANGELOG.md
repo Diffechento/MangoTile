@@ -131,6 +131,17 @@ may now decline a gesture (`MetroDragAxis.onGrab` answers a Boolean), which leav
 unconsumed exactly as a null axis does: a surface that is only half live must not swallow the direction
 it has nothing to do with.
 
+**And the list inside a rising page can put that page away** — `Modifier.metroRiseOverscroll(state)`. A
+page whose content scrolls has a problem the drag modifier cannot solve: the list owns every vertical drag
+inside itself, so the push that closes the page has to live on a title or a handle the finger must find.
+This hands over what the list *cannot* use — a downward drag with nothing left to scroll to, which at the
+top of a list is the beginning of this gesture rather than the end of that one — through nested scroll, so
+the two share the axis instead of fighting for it. Once the page has begun to travel it takes the whole
+gesture in both directions, and letting go finishes the movement from the speed the hand had; a flick that
+dipped into the page and came back leaves its fling to the list, which is what a flick that ended up
+scrolling should get. A list too short to scroll at all hands over everything, so the empty space under
+the last row answers too.
+
 `fromHeight = 0.dp` is now the second, honest case for `rememberMetroRisingPage`: a page that comes out
 of the bottom edge of the screen rather than out of a strip has no strip's navigation inset to inherit,
 and adding it left a band of the page's own top showing along the bottom edge for the last frames of

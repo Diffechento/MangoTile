@@ -40,11 +40,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.isSpecified
 import kotlinx.coroutines.CoroutineScope
@@ -499,6 +504,68 @@ fun Modifier.metroRiseDrag(
             },
             vertical = metroRiseAxis(target, down = state.takeIf { enabled }, up = null)
         )
+}
+
+/**
+ * Lets the **list inside** a rising page put that page away, so the gesture is available anywhere on the
+ * page rather than only on whatever furniture is not a list.
+ *
+ * A page whose content scrolls has a problem the boolean overload does not: the list owns every vertical
+ * drag inside itself, so a drag detector on the page never sees one and the push that closes the page has
+ * to live on a title, a handle, some strip of chrome the finger has to find. Here the list keeps its
+ * scroll and hands over what it *cannot* use — a downward drag with nothing left to scroll to, which at
+ * the top of a list is the start of this gesture rather than the end of that one.
+ *
+ * Once the page has begun to travel it takes the whole gesture in both directions: the list must not
+ * scroll under a page on its way down, and pulling back up has to put the page back rather than scroll
+ * what is behind it. Letting go finishes the movement from the speed the hand had, and the fling is spent
+ * here rather than passed on to a list that would otherwise glide while the page falls.
+ *
+ * Put it on the scrolling thing itself — `LazyColumn(Modifier.metroRiseOverscroll(rising))` — where it
+ * acts as that scrollable's parent. Pair it with [Modifier.metroRiseDrag] on any chrome the page has: a
+ * title above the list answers to a drag directly, since no list is involved in touching it.
+ */
+fun Modifier.metroRiseOverscroll(
+    state: MetroRisingPageState,
+    enabled: Boolean = true
+): Modifier = composed {
+    val connection = remember(state) { MetroRiseOverscrollConnection(state) }
+    if (enabled) Modifier.nestedScroll(connection) else Modifier
+}
+
+private class MetroRiseOverscrollConnection(
+    private val state: MetroRisingPageState
+) : NestedScrollConnection {
+
+    /**
+     * Takes [delta] into the page and says it was taken. Positive is downward, the same sign the finger
+     * has and the same one [MetroRisingPageState.drag] reads, so nothing here has to think about it.
+     */
+    private fun take(delta: Float): Offset {
+        if (delta == 0f) return Offset.Zero
+        // The first pixel off the top also takes the page off whatever animation it was on, and tells
+        // the state that a finger is what stopped it — the one case where being left part way is right.
+        if (state.progress >= 1f) state.grab()
+        state.drag(delta)
+        return Offset(0f, delta)
+    }
+
+    override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset =
+        if (state.progress < 1f) take(available.y) else Offset.Zero
+
+    override fun onPostScroll(
+        consumed: Offset,
+        available: Offset,
+        source: NestedScrollSource
+    ): Offset = if (available.y > 0f) take(available.y) else Offset.Zero
+
+    override suspend fun onPreFling(available: Velocity): Velocity {
+        // A gesture that dipped into the page and came back leaves the fling to the list, which is
+        // exactly what a flick that ended up scrolling should get.
+        if (state.progress >= 1f) return Velocity.Zero
+        state.settle(available.y)
+        return available
+    }
 }
 
 /** Which end of a vertical gesture is being served, held for the length of that gesture. */
