@@ -10,6 +10,7 @@ import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -23,6 +24,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.layout.onSizeChanged
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlin.math.abs
@@ -271,6 +273,158 @@ class MetroDismissState internal constructor(
         animate(live, 0f, if (committed) 0f else velocity, MetroSettleSpring) { v, _ -> live = v }
         live = 0f
     }
+}
+
+/**
+ * One **row** swiped sideways out of a list, and the decision about whether it goes.
+ *
+ * Not [MetroSwipeState], which is a *page* moving between its neighbours and brings a replacement in
+ * from the far edge; and not [MetroDismissState], which is a page pushed away along the other axis.
+ * Here the row itself leaves and the list closes over the gap, which is what "swipe it away" means in
+ * a list you are also scrolling and also holding rows in.
+ *
+ * Either direction removes. A row has no meaning attached to left or right — there is one thing this
+ * gesture does — and insisting on one of them would make half of every attempt fail silently.
+ *
+ * The state applies no transform: read [offset] in a `graphicsLayer` and use [progress] to fade in
+ * whatever is revealed behind the row, which is what tells the hand where the threshold is before it
+ * has crossed it.
+ *
+ *     val away = rememberMetroRowDismiss(onDismiss = { remove(item) })
+ *     Box {
+ *         RemoveBand(alpha = away.progress)
+ *         Row(Modifier.graphicsLayer { translationX = away.offset }.metroRowDismiss(away)) { … }
+ *     }
+ *
+ * A committed row is **seen off the edge** rather than snapped away — a linear tween whose length comes
+ * from the finger's own speed, exactly as a committed page swipe leaves — and [onDismiss] is called when
+ * it gets there, so nothing vanishes before the movement that removed it has finished. The offset is put
+ * back to zero at that moment: the row is expected to be gone, and one that is *not* removed comes back
+ * to where it was instead of sitting invisibly off the screen.
+ */
+@Stable
+class MetroRowDismissState internal constructor(
+    private val scope: CoroutineScope,
+    private val onDismiss: () -> Unit,
+    private val commitFraction: Float,
+    private val flickVelocity: Float
+) {
+
+    /** Pixels the row is displaced by right now. Read it in a `graphicsLayer`. */
+    var offset: Float by mutableFloatStateOf(0f)
+        private set
+
+    internal var width: Int by mutableIntStateOf(0)
+
+    /** True while the row is anywhere other than home — the cue to draw what is behind it. */
+    val active: Boolean get() = offset != 0f
+
+    /**
+     * How far along the decision is: 0f at rest, 1f where letting go would remove the row.
+     *
+     * A fraction of the *commit point* rather than of the row's width, so a reveal that fades in with
+     * it is at full strength exactly where the threshold is instead of a third of the way to it.
+     */
+    val progress: Float
+        get() {
+            val span = width * commitFraction
+            return if (span <= 0f) 0f else (abs(offset) / span).coerceIn(0f, 1f)
+        }
+
+    private var running: Job? = null
+    private var handedToFinger = false
+
+    internal fun grab() {
+        handedToFinger = true
+        running?.cancel()
+        running = null
+    }
+
+    internal fun drag(delta: Float) {
+        offset += delta
+    }
+
+    internal fun settle(velocity: Float) {
+        val span = width.toFloat().coerceAtLeast(1f)
+        val committed = abs(offset) > span * commitFraction || abs(velocity) > flickVelocity
+        handedToFinger = false
+        running?.cancel()
+        if (!committed) {
+            running = scope.launch {
+                try {
+                    animate(offset, 0f, velocity, MetroSettleSpring) { v, _ -> offset = v }
+                } finally {
+                    if (!handedToFinger) offset = 0f
+                }
+            }
+            return
+        }
+        // Which way it leaves: where it already is, or — for a flick that has barely moved anything —
+        // whichever way the flick went.
+        val exit = if (if (abs(offset) > 8f) offset > 0f else velocity > 0f) span else -span
+        running = scope.launch {
+            try {
+                animate(
+                    initialValue = offset,
+                    targetValue = exit,
+                    animationSpec = tween(carryMillis(abs(exit - offset), velocity), easing = LinearEasing)
+                ) { v, _ -> offset = v }
+                offset = 0f
+                onDismiss()
+            } finally {
+                if (!handedToFinger) offset = 0f
+            }
+        }
+    }
+}
+
+/**
+ * Remembers the state for a row that can be swiped out of a list.
+ *
+ * One per row — the row is what leaves, and [onDismiss] is the one belonging to it. [commitFraction] is
+ * of the row's width, and a flick past [flickVelocity] counts however short it was.
+ */
+@Composable
+fun rememberMetroRowDismiss(
+    onDismiss: () -> Unit,
+    commitFraction: Float = 0.33f,
+    flickVelocity: Float = 600f
+): MetroRowDismissState {
+    val scope = rememberCoroutineScope()
+    val dismiss by rememberUpdatedState(onDismiss)
+    return remember(commitFraction, flickVelocity) {
+        MetroRowDismissState(
+            scope = scope,
+            onDismiss = { dismiss() },
+            commitFraction = commitFraction,
+            flickVelocity = flickVelocity
+        )
+    }
+}
+
+/**
+ * Makes the row answer to sideways drags through [state], and — the point of it going through
+ * [metroLockedDrag] rather than a `draggable` — leaves the other axis alone.
+ *
+ * A vertical drag is dropped unconsumed, so the list still scrolls under the finger; a hold is left to
+ * whatever is watching for one, because this only claims the pointer once the slop has been crossed
+ * *sideways*. Put it on the same node the `graphicsLayer` is on: the row is where you can see it, so
+ * that is where it should answer to being touched.
+ */
+fun Modifier.metroRowDismiss(state: MetroRowDismissState, enabled: Boolean = true): Modifier = composed {
+    onSizeChanged { state.width = it.width }
+        .metroLockedDrag(
+            horizontal = if (enabled) {
+                MetroDragAxis(
+                    onGrab = { state.grab(); true },
+                    onDelta = { state.drag(it) },
+                    onStop = { state.settle(it) }
+                )
+            } else {
+                null
+            },
+            vertical = null
+        )
 }
 
 /**

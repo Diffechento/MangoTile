@@ -105,6 +105,23 @@ happen* rather than at the end, so the caller's order is the only one in play �
 behind an asynchronous player has to keep a local copy and send the command, rather than waiting to be
 told what it already knows.
 
+**A row is swiped out of a list** — `MetroRowDismissState`, `rememberMetroRowDismiss`,
+`Modifier.metroRowDismiss`. Not `MetroSwipeState`, which is a *page* moving between its neighbours and
+brings a replacement in from the far edge, and not `MetroDismissState`, which is a page pushed away
+along the other axis: here the row itself leaves and the list closes over the gap. Either direction
+removes, because a row has no meaning attached to left or right and insisting on one of them makes half
+of every attempt fail silently.
+
+It goes through the same one-axis-at-a-time detector as everything else, which is what makes it safe in a
+list that is *also* scrolled and *also* has rows held and dragged in it: a vertical drag is dropped
+unconsumed so the list still scrolls, a hold is left alone because this only claims the pointer once the
+slop has been crossed sideways, and a lifted row consumes on the Initial pass so a reorder in progress is
+never also a dismissal. `progress` is a fraction of the *commit point* rather than of the row's width, so
+a reveal that fades in with it is at full strength exactly where letting go would remove the row instead
+of a third of the way to it. A committed row is seen off the edge at the finger's own speed and
+`onDismiss` fires when it gets there; the offset goes back to zero at that moment, so a row that is *not*
+removed comes back rather than sitting invisibly off screen.
+
 **A rising page can be stacked over another rising page** — `metroRiseDrag(state, pager, upward = …)`.
 An upward drag on a page that has nowhere left to rise is a request for the page above it (a queue over
 a player); while it is still on its way up, the same drag is that rise continuing. One detector decides,
