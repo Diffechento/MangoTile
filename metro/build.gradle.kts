@@ -20,7 +20,12 @@ group = "io.github.diffechento"
 // moment it is on Central it may not be touched again — the next framework change is a new version,
 // Central first and the consumer's push second, because a tag over there resolves from Central and
 // would otherwise be built against a jar nobody has.
-version = "1.0.2"
+//
+// **1.0.3 is that next version, and it is NOT on Central yet.** It carries one fix: the top banner
+// no longer arrives by moving its own window (see MetroBanner). Until it is published, MetroMusic's
+// `main` must not be pushed — its `libs.versions.toml` already asks for this number, and a clean
+// checkout, CI and F-Droid's builder would all fail to resolve it.
+version = "1.0.3"
 
 android {
     namespace = "com.metrocompose"

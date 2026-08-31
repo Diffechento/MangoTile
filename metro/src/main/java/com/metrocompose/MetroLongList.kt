@@ -185,6 +185,9 @@ private data class LabelledGroup<T>(val label: String, val items: List<T>)
  * rows the filled tile is the WP8 look, but over rows that are themselves coloured tiles it turns
  * into a second competing block of accent, which is what the letter is meant to be introducing.
  *
+ * A drag down the list's leading edge scrubs it — see [MetroEdgeScroll], which this turns on for
+ * itself; [edgeScroll] declines it.
+ *
  * This is the alphabetical form. The [MetroListSort]-taking overload is the same list arranged by
  * anything else — by date, by length, by how often a song has been played — and can offer those
  * arrangements on a hold of a group header.
@@ -197,6 +200,7 @@ fun <T> MetroLongList(
     modifier: Modifier = Modifier,
     state: LazyListState = rememberLazyListState(),
     filledGroupHeaders: Boolean = true,
+    edgeScroll: Boolean = true,
     row: @Composable (T) -> Unit
 ) {
     // Grouping by letter and leaving the rows alone inside each group, which is what this list has
@@ -216,6 +220,7 @@ fun <T> MetroLongList(
         modifier = modifier,
         state = state,
         filledGroupHeaders = filledGroupHeaders,
+        edgeScroll = edgeScroll,
         row = row
     )
 }
@@ -231,6 +236,10 @@ fun <T> MetroLongList(
  * choice, so it can be remembered across launches. The two gestures stay what they are on every
  * arrangement — a tap that meant "zoom out" under one heading and "choose an arrangement" under the
  * next would teach the user one thing and then do another.
+ *
+ * A **drag down the leading edge** scrubs the list, naming each run it passes in the same tile the
+ * headers use — a third of the way in is not a letter, and so is not something the grid can be asked
+ * for. See [MetroEdgeScroll]; [edgeScroll] declines it.
  *
  *   MetroLongList(
  *       items = songs, key = { it.id },
@@ -248,6 +257,7 @@ fun <T> MetroLongList(
     filledGroupHeaders: Boolean = true,
     sorts: List<MetroListSort<T>> = emptyList(),
     onSortSelected: (Int) -> Unit = {},
+    edgeScroll: Boolean = true,
     row: @Composable (T) -> Unit
 ) {
     val scope = rememberCoroutineScope()
@@ -293,7 +303,27 @@ fun <T> MetroLongList(
     val openGrid = if (jumpLabels.isEmpty()) null else ({ jumpOpen = true })
     val selectedSort = sorts.indexOfFirst { it.name == sort.name }.takeIf { it >= 0 }
 
+    // Fast scroll down the leading edge, which answers the question the jump grid cannot put: a third of
+    // the way into the library is not a letter. The band addresses the rows and their headers and stops
+    // short of the bottom inset — a spacer is not a place to be taken to — and names the run it has
+    // reached with that run's own label, so a drag arrives reading the way a jump does. It wraps the
+    // list because the gesture has to belong to an ancestor of the rows; see MetroEdgeScroll.
+    val addressable = remember(groups) {
+        groups.sumOf { it.items.size + if (it.label.isEmpty()) 0 else 1 }
+    }
+
     Box(modifier.fillMaxSize()) {
+        MetroEdgeScroll(
+            state = state,
+            enabled = edgeScroll,
+            itemCount = addressable,
+            // A walk over the groups rather than a lookup: it runs once per frame of a drag, over as
+            // many groups as the arrangement has headers — twenty-odd, not the library.
+            label = { index ->
+                val group = headerIndices.indexOfLast { it <= index }
+                if (group >= 0) groups[group].label else ""
+            }
+        ) {
         LazyColumn(Modifier.fillMaxSize(), state = state) {
             groups.forEachIndexed { index, g ->
                 if (g.label.isNotEmpty()) {
@@ -344,6 +374,7 @@ fun <T> MetroLongList(
                 MetroBottomInset(extra = ListEndGap)
             }
         }
+        }
 
         // In a popup rather than over the list, because the alphabet is a whole-screen thing on
         // the phone and the list is not always a whole screen wide — inside a panorama section it
@@ -391,7 +422,7 @@ fun <T> MetroLongList(
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun GroupHeader(
+internal fun GroupHeader(
     label: String,
     enabled: Boolean,
     modifier: Modifier = Modifier,

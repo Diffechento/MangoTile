@@ -76,6 +76,16 @@ class FavoritesTile : MetroWidgetProvider() {
   shown dimmed; the default is the groups the list actually has. Pass a list of arrangements as
   `sorts` and a **hold** on a header unrolls them out of it as a `MetroContextMenu`, the one in force
   in accent.
+- **`MetroEdgeScroll`** — fast scroll by the leading edge, the gallery movement: it **wraps** a list
+  (`content`, and it must be handed that list's own `LazyListState`) and a vertical drag down the 32dp
+  band at its left takes the list its whole length, naming the group reached in an accent tile beside the
+  finger. `label` maps a lazy index to that tile's text; `itemCount` is what the drag may address, which
+  is not `totalItemsCount` when the last item is a `MetroBottomInset`. `MetroLongList` uses it on itself
+  — `edgeScroll = false` declines. It wraps rather than overlays on purpose: an overlay with a
+  `pointerInput` takes the hit test from the rows under it, which silently kills a tap on their left
+  32dp. Absolute, not relative, so the end of the list is reachable from anywhere on the band; a finger
+  landing on the block carries it instead of jumping. Nothing settles on release — a scrubber is a
+  pointer, not a surface being thrown. Shown only on a list over two screenfuls long.
 - **`ListRow`, `SettingRow`** — long-list and settings rows.
 - **`MetroBottomInset`** — the gap a list needs at its end so its last row clears the gesture pill.
 - **`MetroCollapse`** — a header that rolls away with the list under it and comes back when that list is

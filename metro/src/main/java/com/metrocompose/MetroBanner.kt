@@ -24,6 +24,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.MotionDurationScale
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntRect
@@ -34,7 +35,6 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.window.PopupProperties
-import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
 
 /** How long a banner stays put once nothing has changed. */
@@ -44,17 +44,25 @@ private const val DropInMillis = 200
 private const val DropOutMillis = 160
 
 /**
- * Puts a popup along the top edge of the window, [progress] of the way in: 0f is entirely above the
- * screen, 1f is flush with the top. The popup is only as tall as the banner, so everything below it
- * belongs to the page and stays touchable.
+ * Puts a popup along the top edge of the window and leaves it there. The popup is only as tall as
+ * the banner, so everything below it belongs to the page and stays touchable.
+ *
+ * **The window does not move**, and that is a fix rather than a simplification. The banner used to
+ * arrive by animating this offset from `-height` to zero, which means a `WindowManager
+ * .updateViewLayout` per frame: a binder call whose result the compositor applies on its own
+ * schedule, not the app's. Measured on the device, a 200ms drop drew **12 px of a 230 px travel** —
+ * the window appeared almost where it was going and then dribbled the last few pixels over twelve
+ * frames. What the eye got was a jump followed by a crawl, which is exactly what "the banner lags"
+ * means. The drop is a `translationY` inside the window now, which is a transform on a layer and
+ * costs nothing.
  */
-private class TopEdgeSlide(private val progress: Float) : PopupPositionProvider {
+private object TopEdge : PopupPositionProvider {
     override fun calculatePosition(
         anchorBounds: IntRect,
         windowSize: IntSize,
         layoutDirection: LayoutDirection,
         popupContentSize: IntSize
-    ): IntOffset = IntOffset(0, -((1f - progress) * popupContentSize.height).roundToInt())
+    ): IntOffset = IntOffset.Zero
 }
 
 /**
@@ -91,10 +99,7 @@ fun MetroTopBanner(
         onHide()
     }
 
-    // How far in it is, 0..1. The *window* is what moves, not the content inside it: a popup is only
-    // as big as what it holds, so a banner that slid its content inside a screen-sized popup was a
-    // screen-sized window swallowing every touch until it left — which is what "nothing is blocked"
-    // above is supposed to mean, and did not.
+    // How far in it is, 0..1.
     val progress by animateFloatAsState(
         targetValue = if (transition.targetState) 1f else 0f,
         animationSpec = tween(if (transition.targetState) DropInMillis else DropOutMillis),
@@ -104,9 +109,7 @@ fun MetroTopBanner(
     if (!visible && progress <= 0f) return
 
     Popup(
-        // A new provider per frame of the slide: a popup recomputes its position when the provider
-        // changes, and reading a state inside the old one would never be seen.
-        popupPositionProvider = remember(progress) { TopEdgeSlide(progress) },
+        popupPositionProvider = TopEdge,
         properties = PopupProperties(focusable = false, clippingEnabled = false)
     ) {
         Column(
@@ -122,9 +125,24 @@ fun MetroTopBanner(
                 // they stay legible on top of it.
                 .background(MetroTheme.colors.bg)
                 .statusBarsPadding()
-                .padding(horizontal = 20.dp, vertical = 14.dp),
-            content = content
-        )
+                // Clipped *after* the inset, so the band the drop happens in starts under the clock.
+                // This is the other half of the fix: while the whole box was sliding, the rows at the
+                // bottom of it — a track title, an artist — passed through the status bar on their way
+                // down and were drawn under the clock and the wifi icon for the length of the
+                // animation. It read as the banner arriving in the wrong place and then correcting
+                // itself. Nothing may enter that band except the strip's own colour.
+                .clipToBounds()
+        ) {
+            Column(
+                Modifier
+                    // The drop, as a transform on the content rather than a move of the window.
+                    // Measured from the content's own height, so the first frame is exactly one
+                    // banner above its place however tall the banner turns out to be.
+                    .graphicsLayer { translationY = -(1f - progress) * size.height }
+                    .padding(horizontal = 20.dp, vertical = 14.dp),
+                content = content
+            )
+        }
     }
 }
 

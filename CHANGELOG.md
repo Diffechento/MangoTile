@@ -1,5 +1,57 @@
 # Changelog
 
+## 1.0.3
+
+**A long list can be scrubbed by its leading edge.** `MetroEdgeScroll` wraps a list and takes a
+vertical drag down the 32dp band along its left side: the list travels its whole length under the
+finger, and the group reached is named in an accent tile held beside it. It answers the question the
+jump grid cannot put — a third of the way into a library is not a letter — and `MetroLongList` turns it
+on for itself, so both overloads get it with no call site changing. `edgeScroll = false` on either
+declines it, and the band appears only on a list longer than two screenfuls, since below that the
+list's own scroll reaches everything in one movement.
+
+- **It wraps the list rather than sitting over it**, which is the whole of the API's shape and was found
+  the hard way. An overlay carrying a `pointerInput` takes the hit test from everything beneath it
+  whether or not it consumes anything: with the first version in place a tap at x=40px on a music
+  library did nothing at all while the same tap at x=400 played the row — the left 32dp of every row had
+  gone dead. From the list's own container the band can watch a press, decline it, and leave it to the
+  row.
+- **The finger's position is the list's position.** A relative scrubber cannot reach the end of a list
+  from the middle of the band, so this is absolute — with the block carried rather than jumped when the
+  finger lands within 22dp of it, which is how a scrollbar's track has always behaved.
+- **Nothing settles when the finger lifts, deliberately.** Every other gesture here ends on
+  `MetroSettleSpring` carrying the gesture's velocity; a scrubber is a pointer rather than a surface
+  being thrown, and coasting on would land somewhere the finger did not choose.
+- **It consumes on `PointerEventPass.Initial` once it has locked the axis**, which is what stops the
+  `LazyColumn` inside from scrolling the same finger a second time. Before the lock it consumes nothing,
+  so a tap still reaches the row and a sideways drag is still the panorama's section change.
+- **Measured, and the measurement changed the code.** The first version read the drag's target index
+  during composition, which recomposed the wrapped list on every frame of a drag: **30ms median and
+  46ms at the 90th percentile**, against 18–20ms for an ordinary scroll of the same list (debug build,
+  Pixel_7 emulator). Splitting the derived state so composition reads only *is this list long enough*,
+  and handing the tile its index as a lambda so the index is read inside the tile's own scope, took it
+  to **20 / 21 / 25ms** — an ordinary scroll's cost for a movement that recomposes a screenful of rows
+  every frame.
+
+**The top banner drops in properly.** It used to arrive by animating the position of its own
+window — `MetroTopBanner` lives in a `Popup`, and the slide was that popup's offset going from
+`-height` to zero. That is a `WindowManager.updateViewLayout` per frame: a binder call whose result
+the compositor applies on its own schedule rather than the app's, and it cannot keep up. Measured on
+a device at 60fps, a 200ms drop drew **12 px of a 230 px travel** — the window appeared almost where
+it was going and then crawled the last few pixels over twelve frames, which is a jump followed by a
+stutter, and is what "the banner lags" means. The window is placed once now and the drop is a
+`translationY` inside it: the same 200ms, and the same measurement afterwards shows the strip
+travelling ~116 px over seven frames, a step per frame.
+
+**And nothing is drawn under the clock on the way in.** The banner's content sits below the status
+bar inset at rest, but while the whole box was sliding, the rows at the *bottom* of it — a track
+title and its artist, in the volume banner's now-playing slot — passed through the status bar band
+and were drawn under the clock and the wifi icon for the length of the animation. It reads as the
+strip landing in the wrong place and then correcting itself. The drop is clipped to the band below
+the inset now, so the only thing that ever occupies the status bar is the strip's own colour.
+
+No API change: `MetroTopBanner` and `MetroVolumeBanner` take exactly what they took before.
+
 ## 1.0.2
 
 **Gestures continue instead of restarting.** The one defect behind all of this: `animate(from, to,
