@@ -11,20 +11,15 @@ plugins {
 // alternative. The Kotlin package stays `com.metrocompose`: a groupId and a package name are
 // different things, so no source changes and no import churn for consumers.
 group = "io.github.diffechento"
-// 1.0.3 is **on Central**, published 2026-08-31 — the banner fix and MetroEdgeScroll — and MetroMusic
-// 1.3 shipped against it. 1.0.2 (2026-08-05) is on Central too. Both are fixed for ever.
+// 1.0.4 is **on Central**, published 2026-09-14 (deployment 68fc7380-0731-45f1-90ec-3271dac67536) —
+// the nav host holds the screen still while a page turns — and MetroMusic 1.4 shipped against it.
+// 1.0.3 (2026-08-31) and 1.0.2 (2026-08-05) are on Central too. All three are fixed for ever.
 //
 // That is the whole of the rule for the next one: a version is a promise that one jar answers to that
 // coordinate for ever. While a number is unreleased it may be rebuilt as often as you like, and the
 // moment it is on Central it may not be touched again — the next framework change is a new version,
 // Central first and the consumer's push second, because a tag over there resolves from Central and
 // would otherwise be built against a jar nobody has.
-//
-// **1.0.4 is that next version, and it is NOT on Central yet.** It carries one fix: a page that is
-// turning no longer answers to the finger, so a continuum flight cannot be chased across the screen
-// by a list being scrolled under it (see MetroNav). Until it is published, MetroMusic's `main` must
-// not be pushed with `libs.versions.toml` asking for this number — a clean checkout, CI and
-// F-Droid's builder would all fail to resolve it.
 version = "1.0.4"
 
 android {
