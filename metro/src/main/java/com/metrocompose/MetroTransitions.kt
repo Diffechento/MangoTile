@@ -57,6 +57,17 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
 /**
+ * How long a page takes to turn, and therefore how long a continuum flight lasts.
+ *
+ * One constant because the two have to end together. The element flying between the pages is drawn
+ * in the transition's overlay, above both of them, and [MetroNavHost] holds the screen still for
+ * exactly as long as the transition is running — so a flight that outlived the turn would land in a
+ * screen that has started taking touches again, and be chased across it by whatever the finger then
+ * moved. See [Modifier.metroContinuum].
+ */
+const val MetroTurnstileMillis = 300
+
+/**
  * WP8-flavored "turnstile" page transition for AnimatedContent: the incoming page
  * swings in from the right with a slight scale-up while the outgoing one slides away.
  *
@@ -66,7 +77,7 @@ import kotlinx.coroutines.launch
  *   AnimatedContent(nav, transitionSpec = { metroTurnstile() }) { screen -> ... }
  */
 fun <S> AnimatedContentTransitionScope<S>.metroTurnstile(
-    durationMillis: Int = 300,
+    durationMillis: Int = MetroTurnstileMillis,
     reverse: Boolean = false
 ): ContentTransform {
     val floatSpec = tween<Float>(durationMillis)

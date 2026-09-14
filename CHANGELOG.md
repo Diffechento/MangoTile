@@ -1,5 +1,27 @@
 # Changelog
 
+## 1.0.4
+
+**A page that is turning does not answer to the finger.** Both pages of a transition are composed
+and both were hit-testable, and an element flying between them under `metroContinuum` is drawn in
+the transition's overlay — above everything — with its flight aimed at wherever its twin is *now*.
+So moving either page while a cover was in the air re-aimed it every frame: tapping an album and
+scrolling the album page before the cover landed sent the cover to the top-left corner of the
+screen, over the status bar, and it chased the list for as long as the finger kept moving.
+`MetroNavHost` now consumes pointer events on the `Initial` pass for as long as its transition is
+running, which removes the cause rather than the symptom — and is what a Windows Phone does anyway.
+Only what is *inside* the host is held: a bar or a rising page beside it stays live, so a mini
+player under one still works.
+
+**The continuum's flight is a tween of the turnstile's own length**, not the runtime's default
+spring. A spring has no end of its own — it aims at the far element's current bounds and keeps
+re-aiming — so anything that moved the target kept the picture travelling, and the flight could
+outlive the page turn and be caught by the next gesture: the invisible-tail problem `MetroSnapSpring`
+was fixed for in 1.0.2, in another costume. Ending exactly when the turn does is what lets the host
+hold the screen still for precisely as long as there is something in the air. `metroContinuum` takes
+a `durationMillis` for the case where `metroTurnstile` was given one, and `MetroTurnstileMillis` is
+the number both default to.
+
 ## 1.0.3
 
 **A long list can be scrubbed by its leading edge.** `MetroEdgeScroll` wraps a list and takes a

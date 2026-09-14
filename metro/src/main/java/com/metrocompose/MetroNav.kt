@@ -1,4 +1,4 @@
-@file:OptIn(ExperimentalSharedTransitionApi::class)
+@file:OptIn(ExperimentalSharedTransitionApi::class, ExperimentalAnimationApi::class)
 
 package com.metrocompose
 
@@ -6,10 +6,14 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.AnimatedVisibilityScope
+import androidx.compose.animation.BoundsTransform
 import androidx.compose.animation.ContentTransform
+import androidx.compose.animation.ExperimentalAnimationApi
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionLayout
 import androidx.compose.animation.SharedTransitionScope
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.updateTransition
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -24,6 +28,8 @@ import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
 
 /**
  * A minimal navigation stack: a list of destinations of your own type, usually a sealed
@@ -172,11 +178,13 @@ fun <T : Any> MetroNavHost(
         live.forEach { if (it !in seen) seen.add(it) }
     }
 
-    SharedTransitionLayout(modifier) {
-        AnimatedContent(
-            targetState = backStack.current,
-            transitionSpec = { transition(backStack.isPopping) },
-            label = "metro-nav"
+    // Driven explicitly rather than by the plain `AnimatedContent(targetState)` overload, because the
+    // host needs to know *outside* the pages whether the turn is still running — see [metroFrozen].
+    val turn = updateTransition(targetState = backStack.current, label = "metro-nav")
+
+    SharedTransitionLayout(modifier.metroFrozen(turn.isRunning)) {
+        turn.AnimatedContent(
+            transitionSpec = { transition(backStack.isPopping) }
         ) { destination ->
             CompositionLocalProvider(
                 LocalMetroSharedScope provides this@SharedTransitionLayout,
@@ -189,6 +197,39 @@ fun <T : Any> MetroNavHost(
         }
     }
 }
+
+/**
+ * Takes the screen's touches away for as long as a page is turning.
+ *
+ * A page transition is not a still picture with two layers: both pages are composed and both are
+ * hit-testable, and an element flying between them under [metroContinuum] is drawn in the
+ * transition's own overlay, **above** everything, with its flight aimed at where its twin is *now*.
+ * Move either page while that is in the air — scroll the list it came out of, scroll the page it is
+ * flying into, swipe the panorama to another section — and the aim is recomputed every frame, so the
+ * picture chases a target the finger is dragging and crosses the screen over the top of the page,
+ * the status bar included. Measured before this existed: tapping an album and scrolling the album
+ * page while its cover was still on its way put the cover in the top-left corner over the clock.
+ *
+ * The cause is the screen moving under the flight, so that is what this removes. It is also what a
+ * Windows Phone does — a page that is turning does not answer — and it costs a quarter of a second
+ * during which the only thing anyone could usefully do is push a second copy of the page they have
+ * just asked for.
+ *
+ * It consumes on the [PointerEventPass.Initial] pass, which is dispatched parent-first, so the down
+ * is already spent by the time the pages inside see it. That is not the same as not delivering it:
+ * a `draggable` still receives the down (it waits for one with `requireUnconsumed = false`) and then
+ * cancels when the slop detector finds the change consumed, which is the same arbitration the edge
+ * scrubber leans on. Only the surfaces *inside* the host are affected — a bar or a rising page that
+ * is a sibling of [MetroNavHost] keeps working, which is why the mini player under one stays live.
+ */
+private fun Modifier.metroFrozen(frozen: Boolean): Modifier =
+    if (!frozen) this else this.pointerInput(Unit) {
+        awaitPointerEventScope {
+            while (true) {
+                awaitPointerEvent(PointerEventPass.Initial).changes.forEach { it.consume() }
+            }
+        }
+    }
 
 /**
  * Continuum: mark an element with a [key], use the same key on the next screen, and it flows
@@ -204,15 +245,26 @@ fun <T : Any> MetroNavHost(
  * list can show an item twice, leave continuum off it.
  *
  * A no-op outside a [MetroNavHost], so shared components stay usable anywhere.
+ *
+ * **The flight is a tween of [durationMillis], not the runtime's default spring, and it is the same
+ * number the page turn takes.** A spring aims at wherever the far element is at this instant and
+ * keeps re-aiming, which is right for something being carried by a finger and wrong for something
+ * crossing between two pages: it has no end of its own, so while anything moves the target — a list
+ * scrolling, a header collapsing — the picture follows it around the screen instead of landing. A
+ * tween ends when it says it will, and ending exactly when the turn does is what lets [MetroNavHost]
+ * hold the screen still for precisely as long as there is something in the air. Pass the same
+ * duration here as to `metroTurnstile` if you change one.
  */
 @Composable
-fun Modifier.metroContinuum(key: Any): Modifier {
+fun Modifier.metroContinuum(key: Any, durationMillis: Int = MetroTurnstileMillis): Modifier {
     val shared = LocalMetroSharedScope.current ?: return this
     val anim = LocalMetroAnimScope.current ?: return this
+    val bounds = remember(durationMillis) { BoundsTransform { _, _ -> tween(durationMillis) } }
     return with(shared) {
         this@metroContinuum.sharedBounds(
             sharedContentState = rememberSharedContentState(key = key),
-            animatedVisibilityScope = anim
+            animatedVisibilityScope = anim,
+            boundsTransform = bounds
         )
     }
 }
