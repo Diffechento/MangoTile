@@ -41,6 +41,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
@@ -63,6 +64,7 @@ import kotlin.math.abs
 import kotlin.math.ceil
 import kotlin.math.floor
 import kotlin.math.roundToInt
+import kotlinx.coroutines.launch
 
 /** How much wider than the viewport the background layer is drawn. */
 private const val BackgroundScale = 1.4f
@@ -369,6 +371,9 @@ class MetroPanoramaSection(
      * The header is the obvious place to hang "search this section" from: it is the one thing on the
      * section that names what the list contains, it is already the widest target on screen, and a
      * separate search button would be a second element competing with it.
+     *
+     * It answers only while this section is the one on screen. Tapping a header leaning in from a
+     * neighbouring section always takes you to that section instead, whatever this says.
      */
     val onHeaderClick: (() -> Unit)? = null,
     val content: @Composable ColumnScope.() -> Unit
@@ -390,6 +395,8 @@ class MetroPanoramaSection(
  *    entirely off screen. Attaching the header to its page instead is the obvious implementation and
  *    the wrong one: the header can then only lean in by dragging a sliver of the next section's list
  *    on screen with it.
+ *  - **A header that is leaning in is also a way there.** Tapping it turns the panorama to its
+ *    section, on the same spring a swipe settles on, so a swipe is never the only way across.
  *
  * Sections share one width, which is what lets the wrap arithmetic be exact; a section that needs a
  * different one wants the other overload. Keep the *number* of them stable while the panorama is on
@@ -631,6 +638,7 @@ fun MetroPanorama(
             // own speed. That speed falls out of the geometry: the headers are [sectionPeek] closer
             // together than the pages are wide, so one page of scrolling moves them one page less
             // the peek, and the next one is always showing by exactly that much.
+            val scope = rememberCoroutineScope()
             Box(Modifier.fillMaxWidth().clipToBounds()) {
                 val settled = pager.currentPage
                 // Farthest first, so a header longer than the spacing is overlapped by the one you
@@ -651,11 +659,6 @@ fun MetroPanorama(
                             // Natural width; the layout box would otherwise clamp a long header to
                             // the window and the ellipsis would appear before the peek does.
                             .wrapContentWidth(align = Alignment.Start, unbounded = true)
-                            .then(
-                                section.onHeaderClick?.let { click ->
-                                    Modifier.clickable { click() }
-                                } ?: Modifier
-                            )
                             .graphicsLayer {
                                 // Read here rather than in composition, so a drag costs a layer
                                 // update instead of a recomposition per frame.
@@ -669,6 +672,32 @@ fun MetroPanorama(
                                 translationX = away * headerSpacingPx + indent
                                 alpha = 1f - abs(away).coerceIn(0f, 1f) * (1f - AwayHeaderAlpha)
                             }
+                            // A header is also the way *to* its section: tapping the one leaning in
+                            // from the right goes there, which is the other half of what the peek is
+                            // for. The one you are on keeps whatever its section made it do.
+                            //
+                            // After the layer, not before it. Every header is laid out at x = 0 and
+                            // put in place by `translationX`, and pointer input *outside* a layer is
+                            // hit-tested at the untransformed position — so before it, all of them
+                            // answered on top of each other at the left edge, which only ever worked
+                            // because the current one is drawn last and so won.
+                            .then(
+                                when {
+                                    page != settled && (wrapping || page in 0 until count) ->
+                                        Modifier.clickable {
+                                            scope.launch {
+                                                pager.animateScrollToPage(
+                                                    page,
+                                                    animationSpec = MetroSnapSpring
+                                                )
+                                            }
+                                        }
+                                    page == settled -> section.onHeaderClick?.let { click ->
+                                        Modifier.clickable { click() }
+                                    } ?: Modifier
+                                    else -> Modifier
+                                }
+                            )
                     )
                 }
             }

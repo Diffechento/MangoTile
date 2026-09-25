@@ -35,7 +35,14 @@ enum class MetroIcon {
     Star, StarFilled, Shuffle, Repeat, RepeatOne,
     Previous, Play, Pause, Next,
     Speaker, SpeakerMuted,
-    ChevronUp, ChevronDown
+    ChevronUp, ChevronDown,
+
+    /**
+     * Lines of words with one of them lit — "show the words", for a player that can put a song's
+     * lyrics where its cover goes. Appended rather than placed by meaning, so nothing already
+     * written against this enum moves.
+     */
+    LyricLines
 }
 
 /**
@@ -65,7 +72,34 @@ fun MetroLineIcon(
             MetroIcon.SpeakerMuted -> drawSpeaker(color, stroke, muted = true)
             MetroIcon.ChevronUp -> drawChevron(color, stroke, up = true)
             MetroIcon.ChevronDown -> drawChevron(color, stroke, up = false)
+            MetroIcon.LyricLines -> drawLyricLines(color, stroke)
         }
+    }
+}
+
+/**
+ * Four strokes at the set's own weight, of **unequal length** — which is the whole difference between
+ * a page of writing and a menu icon, since three equal bars is exactly what a menu icon is. The second
+ * runs full width where the others fall short, so what the eye picks out is one line standing proud of
+ * its neighbours: the line being sung.
+ *
+ * Ragged on purpose and in no pattern. Set them tidily — long, short, long, short — and it reads as a
+ * graph.
+ */
+private fun DrawScope.drawLyricLines(color: Color, stroke: Float) {
+    val lengths = floatArrayOf(0.72f, 1f, 0.58f, 0.86f)
+    // Inset by half the stroke at both ends so the outer strokes sit *inside* the box rather than half
+    // out of it, which is what makes it the same visual size as the icons beside it.
+    val top = stroke / 2f
+    val span = size.height - stroke
+    lengths.forEachIndexed { index, length ->
+        val y = top + span * index / (lengths.size - 1)
+        drawLine(
+            color = color,
+            start = Offset(0f, y),
+            end = Offset(size.width * length, y),
+            strokeWidth = stroke
+        )
     }
 }
 

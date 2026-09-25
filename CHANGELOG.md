@@ -1,5 +1,34 @@
 # Changelog
 
+## 1.0.5
+
+**Tapping a panorama header that is leaning in takes you to its section.** A swipe used to be the
+only way across the circular `MetroPanorama`, although the next header was already on screen and
+looked like something you could press. Now it turns the panorama to its section, settling on
+`MetroSnapSpring` just as a swipe does. The header of the section you are on still does what its
+`onHeaderClick` says.
+
+- **The click is now after the header's layer, not before it.** Headers are all laid out at x = 0 and
+  moved into place by `translationX`. Pointer input outside a layer is hit-tested at the untransformed
+  position, so every header used to answer at the left edge, stacked on top of the others. The
+  current one only worked because it is drawn last. No API changed.
+
+**Four pieces brought over from MetroMusic**, where each had been written for one screen and
+turned out to be something any Metro app wants. All of them are additions, and no existing
+signature changed.
+
+- **`MetroIcon.LyricLines`**: four strokes of unequal length with the second standing proud. It
+  means "show the words", for a player that can put a song's lyrics where its cover goes. The entry
+  is appended to the end of the enum, so nothing already written against it moves.
+- **`MetroFlipTile`**: a tile that turns over on a tap, with a front face and a back face. The
+  caller holds the number of turns, and the parity of that number decides which face shows. It has
+  a finite camera distance, so it turns rather than squashes. The back face is counter-turned as one
+  surface, so its layout is not mirrored. It sinks under a finger instead of tilting, because a
+  tilt is a second rotation and does not compose with the turn.
+- **`MetroSubheader`**: the grey 24sp heading over a run of rows inside a page, on `ListRow`'s
+  gutter.
+- **`MetroEmptyNote`**: what an empty list says in place of its rows.
+
 ## 1.0.4
 
 **A page that is turning does not answer to the finger.** Both pages of a transition are composed

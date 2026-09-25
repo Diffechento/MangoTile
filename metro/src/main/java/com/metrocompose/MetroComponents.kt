@@ -16,6 +16,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -40,6 +41,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
@@ -295,6 +297,115 @@ fun Tile(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.align(Alignment.BottomStart).padding(pad)
+        )
+    }
+}
+
+/**
+ * A tile that turns over when tapped, showing [front] and [back] in turn — the flip tile the phone's
+ * start screen is built on, driven by a tap rather than by a timer.
+ *
+ * [turns] is how many times it has been turned, and the caller holds it: which face is showing is its
+ * *parity*, not the current angle, so the content swaps exactly once per turn, at the moment the tile
+ * is edge-on. Holding it outside also lets the caller hang something else off the count — a colour
+ * that moves on with each turn, a counter of how often somebody poked it.
+ *
+ * Three things are what make it read as a turn and not as a trick of the eye:
+ *
+ *  - **A finite `cameraDistance`.** Without one the rotation has no perspective, and a tile turning
+ *    about its vertical axis is a rectangle getting narrower and wider again — a squash.
+ *  - **The back face is counter-turned as one surface.** Everything on it sits inside a single layer
+ *    rotated a further 180°, so it reads the right way round. Counter-turning each piece of text on
+ *    its own instead leaves their *positions* mirrored: the number reads correctly while the label
+ *    crosses to the other corner, which looks like a layout bug.
+ *  - **It sinks under the finger and does not tilt.** [Tile] tilts towards a press, and a tilt is a
+ *    rotation of its own that does not compose with this one.
+ *
+ * Content is white on [color], like every tile: a tile is a coloured surface, whatever the theme.
+ */
+@Composable
+fun MetroFlipTile(
+    turns: Int,
+    onClick: () -> Unit,
+    color: Color,
+    modifier: Modifier = Modifier,
+    size: Dp = 104.dp,
+    flipMillis: Int = 420,
+    front: @Composable BoxScope.() -> Unit,
+    back: @Composable BoxScope.() -> Unit
+) {
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val angle by animateFloatAsState(
+        targetValue = turns * 180f,
+        animationSpec = tween(durationMillis = flipMillis),
+        label = "flip-tile-turn"
+    )
+    val scale by animateFloatAsState(
+        targetValue = if (pressed) 0.94f else 1f,
+        animationSpec = tween(durationMillis = 90),
+        label = "flip-tile-press"
+    )
+    val showsBack = turns % 2 != 0
+    val density = LocalDensity.current.density
+
+    Box(
+        modifier
+            .size(size)
+            .graphicsLayer {
+                rotationY = angle
+                scaleX = scale
+                scaleY = scale
+                cameraDistance = 16f * density
+            }
+            .background(color)
+            .clickable(interactionSource = interaction, indication = null) { onClick() }
+    ) {
+        Box(
+            Modifier
+                .fillMaxSize()
+                .graphicsLayer { rotationY = if (showsBack) 180f else 0f },
+            content = if (showsBack) back else front
+        )
+    }
+}
+
+/**
+ * The grey heading over a group of rows inside a page — "albums" on an artist's page, a group of
+ * settings, a kind of search result. Quieter than a section header on purpose: it labels a run of
+ * rows rather than naming a place.
+ *
+ * On the 24dp gutter [ListRow] uses, so the heading and the rows under it share one left edge.
+ * [top] and [bottom] are the gaps around it, which differ with what it follows.
+ */
+@Composable
+fun MetroSubheader(
+    text: String,
+    modifier: Modifier = Modifier,
+    top: Dp = 8.dp,
+    bottom: Dp = 8.dp
+) {
+    Text(
+        text = text,
+        color = MetroTheme.colors.subtle,
+        fontFamily = MetroSemilight,
+        fontSize = 24.sp,
+        modifier = modifier.padding(start = 24.dp, top = top, bottom = bottom)
+    )
+}
+
+/**
+ * What an empty list says in place of its rows. In the dim colour and a size down from a row's
+ * primary line, so it cannot be mistaken for a row that happens to be the only one.
+ */
+@Composable
+fun MetroEmptyNote(text: String, modifier: Modifier = Modifier) {
+    Box(modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 32.dp)) {
+        Text(
+            text = text,
+            color = MetroTheme.colors.dim,
+            fontFamily = MetroRegular,
+            fontSize = 18.sp
         )
     }
 }

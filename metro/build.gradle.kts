@@ -20,7 +20,7 @@ group = "io.github.diffechento"
 // moment it is on Central it may not be touched again — the next framework change is a new version,
 // Central first and the consumer's push second, because a tag over there resolves from Central and
 // would otherwise be built against a jar nobody has.
-version = "1.0.4"
+version = "1.0.5"
 
 android {
     namespace = "com.metrocompose"
